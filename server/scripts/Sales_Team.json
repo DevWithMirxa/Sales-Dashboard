@@ -1,0 +1,49 @@
+{
+  "Sales Team": [
+    {
+      "Saleperson": "Dr. Asad Afzal",
+      "Designation": "RSM",
+      "Region": "LHR, RWL, SWL"
+    },
+    {
+      "Saleperson": "Dr. Abdul Rehman",
+      "Designation": "ASM",
+      "Region": "SWL"
+    },
+    {
+      "Saleperson": "Dr. Junaid",
+      "Designation": "ASM",
+      "Region": "RWL"
+    },
+    {
+      "Saleperson": "Mr. Junaid",
+      "Designation": "ASM",
+      "Region": "Multan"
+    },
+    {
+      "Saleperson": "Mr. Shakeeb",
+      "Designation": "ASM",
+      "Region": "Karachi"
+    },
+    {
+      "Saleperson": "Mr. Basit Aziz",
+      "Designation": "ASM",
+      "Region": "Kamalia"
+    },
+    {
+      "Saleperson": "Mr. Qadeer Ahmed",
+      "Designation": "RSM",
+      "Region": "Fsd, Kamalia"
+    },
+    {
+      "Saleperson": "Mr. Ehsan Elahi",
+      "Designation": "ASM",
+      "Region": "RWL"
+    },
+    {
+      "Saleperson": "Mr. Nasie Ejaz",
+      "Designation": "ASM",
+      "Region": "LHR"
+    }
+  ]
+}
