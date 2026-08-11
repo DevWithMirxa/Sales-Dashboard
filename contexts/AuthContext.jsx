@@ -1,152 +1,190 @@
-'use client'
+"use client";
 
-import React, { createContext, useState, useContext, useEffect } from 'react'
-import api from '../lib/api'
+import React, { createContext, useState, useContext, useEffect } from "react";
+import api from "../lib/api";
 
-const AuthContext = createContext()
-const bypassLogin = process.env.NEXT_PUBLIC_BYPASS_LOGIN === 'true'
+const AuthContext = createContext();
+const bypassLogin = process.env.NEXT_PUBLIC_BYPASS_LOGIN === "true";
 const DEMO_USERS = {
-  'admin@saleshub.com': {
-    _id: 'demo-admin',
-    name: 'Demo Admin',
-    email: 'admin@saleshub.com',
-    role: 'admin',
+  "admin@saleshub.com": {
+    _id: "demo-admin",
+    name: "Demo Admin",
+    email: "admin@saleshub.com",
+    role: "admin",
   },
-  'user@example.com': {
-    _id: 'demo-user',
-    name: 'Demo User',
-    email: 'user@example.com',
-    role: 'user',
+  "user@example.com": {
+    _id: "demo-user",
+    name: "Demo User",
+    email: "user@example.com",
+    role: "user",
   },
-}
+};
 const DEMO_PASSWORDS = {
-  'admin@saleshub.com': 'admin123',
-  'user@example.com': 'user123',
-}
-const DEMO_TOKEN = 'demo-token'
+  "admin@saleshub.com": "admin123",
+  "user@example.com": "user123",
+};
+const DEMO_TOKEN = "demo-token";
 
 const getCookieValue = (name) => {
-  if (typeof window === 'undefined') return undefined
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
-  return match ? match[2] : undefined
-}
+  if (typeof window === "undefined") return undefined;
+  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return match ? match[2] : undefined;
+};
 
 const setCookie = (name, value, days = 7) => {
-  if (typeof window === 'undefined') return
-  const expires = new Date(Date.now() + days * 864e5).toUTCString()
-  document.cookie = `${name}=${value}; path=/; expires=${expires}`
-}
+  if (typeof window === "undefined") return;
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${value}; path=/; expires=${expires}`;
+};
 
 const removeCookie = (name) => {
-  if (typeof window === 'undefined') return
-  document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
-}
+  if (typeof window === "undefined") return;
+  document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+};
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchUser = async () => {
-      const cookieToken = getCookieValue('token')
+      const cookieToken = getCookieValue("token");
       if (cookieToken === DEMO_TOKEN) {
-        setUser(DEMO_USERS['admin@saleshub.com'])
-        setLoading(false)
-        return
+        setUser(DEMO_USERS["admin@saleshub.com"]);
+        setLoading(false);
+        return;
       }
 
       if (bypassLogin) {
-        setUser(DEMO_USERS['admin@saleshub.com'])
-        setLoading(false)
-        return
+        setUser(DEMO_USERS["admin@saleshub.com"]);
+        setLoading(false);
+        return;
+      }
+
+      // No client-readable token at all means we're definitely logged out —
+      // skip the network call entirely instead of hitting /auth/me with no
+      // Authorization header (which would just 401 anyway).
+      if (!cookieToken) {
+        setUser(null);
+        setLoading(false);
+        return;
       }
 
       try {
-        const { data } = await api.get('/auth/me')
-        setUser(data)
+        const { data } = await api.get("/auth/me");
+        setUser(data);
       } catch (error) {
-        setUser(null)
+        setUser(null);
+        removeCookie("token");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchUser()
-  }, [])
+    fetchUser();
+  }, []);
 
   const login = async (email, password) => {
-    const lowerEmail = email.toLowerCase().trim()
-    const demoPassword = DEMO_PASSWORDS[lowerEmail]
+    const lowerEmail = email.toLowerCase().trim();
+    const demoPassword = DEMO_PASSWORDS[lowerEmail];
 
-    console.log('[LOGIN] Email:', lowerEmail, 'Password:', password, 'Demo Password:', demoPassword, 'Match:', demoPassword && password === demoPassword)
+    console.log(
+      "[LOGIN] Email:",
+      lowerEmail,
+      "Password:",
+      password,
+      "Demo Password:",
+      demoPassword,
+      "Match:",
+      demoPassword && password === demoPassword,
+    );
 
     if (demoPassword && password === demoPassword) {
-      console.log('[LOGIN] Demo credentials matched, logging in...')
-      const demoData = DEMO_USERS[lowerEmail]
-      setCookie('token', DEMO_TOKEN)
-      setUser(demoData)
-      return { success: true, user: demoData }
+      console.log("[LOGIN] Demo credentials matched, logging in...");
+      const demoData = DEMO_USERS[lowerEmail];
+      setCookie("token", DEMO_TOKEN);
+      setUser(demoData);
+      return { success: true, user: demoData };
     }
 
     if (bypassLogin) {
-      console.log('[LOGIN] Bypass mode enabled')
-      setCookie('token', DEMO_TOKEN)
-      setUser(DEMO_USERS['admin@saleshub.com'])
-      return { success: true, user: DEMO_USERS['admin@saleshub.com'] }
+      console.log("[LOGIN] Bypass mode enabled");
+      setCookie("token", DEMO_TOKEN);
+      setUser(DEMO_USERS["admin@saleshub.com"]);
+      return { success: true, user: DEMO_USERS["admin@saleshub.com"] };
     }
 
-    console.log('[LOGIN] No demo match, trying backend API...')
+    console.log("[LOGIN] No demo match, trying backend API...");
     try {
-      setLoading(true)
-      const { data } = await api.post('/auth/login', { email, password })
-      setUser(data)
-      return { success: true, user: data }
+      setLoading(true);
+      const { data } = await api.post("/auth/login", { email, password });
+      // Store the token client-side so middleware.js and the Authorization
+      // header interceptor (see lib/api.js) can use it — the backend's own
+      // cookie is httpOnly and lives on a different domain, so it's not
+      // usable by our frontend directly.
+      if (data.token) {
+        setCookie("token", data.token);
+      }
+      setUser(data);
+      return { success: true, user: data };
     } catch (error) {
-      console.log('[LOGIN] Backend error:', error.message)
-      return { success: false, error: error.response?.data?.message || 'Invalid email or password' }
+      console.log("[LOGIN] Backend error:", error.message);
+      return {
+        success: false,
+        error: error.response?.data?.message || "Invalid email or password",
+      };
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const signup = async (fullName, email, password, confirmPassword) => {
     if (password !== confirmPassword) {
-      return { success: false, error: 'Passwords do not match' }
+      return { success: false, error: "Passwords do not match" };
     }
     if (password.length < 6) {
-      return { success: false, error: 'Password must be at least 6 characters' }
+      return {
+        success: false,
+        error: "Password must be at least 6 characters",
+      };
     }
 
     try {
-      setLoading(true)
-      const { data } = await api.post('/auth/register', {
+      setLoading(true);
+      const { data } = await api.post("/auth/register", {
         name: fullName,
         email,
         password,
-      })
-      setUser(data)
-      return { success: true, user: data }
+      });
+      if (data.token) {
+        setCookie("token", data.token);
+      }
+      setUser(data);
+      return { success: true, user: data };
     } catch (error) {
-      return { success: false, error: error.response?.data?.message || 'Failed to sign up' }
+      return {
+        success: false,
+        error: error.response?.data?.message || "Failed to sign up",
+      };
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const logout = async () => {
-    removeCookie('token')
-    setUser(null)
+    removeCookie("token");
+    setUser(null);
 
     if (bypassLogin) {
-      return
+      return;
     }
 
     try {
-      await api.post('/auth/logout')
+      await api.post("/auth/logout");
     } catch (error) {
-      console.error('Logout error', error)
+      console.error("Logout error", error);
     }
-  }
+  };
 
   return (
     <AuthContext.Provider
@@ -157,18 +195,18 @@ export function AuthProvider({ children }) {
         signup,
         logout,
         isAuthenticated: !!user,
-        isAdmin: user?.role === 'admin',
+        isAdmin: user?.role === "admin",
       }}
     >
       {children}
     </AuthContext.Provider>
-  )
+  );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context
+  return context;
 }
