@@ -1,106 +1,103 @@
-'use client'
+"use client";
 
-import React, { useState, useEffect, useMemo } from 'react'
-import { ProtectedRoute } from '@/components/ProtectedRoute'
-import DashboardLayout from '@/components/DashboardLayout'
-import SalesPersonForm from '@/components/forms/SalesPersonForm'
-import TanStackDataTable from '@/components/TanStackDataTable'
-import { Plus, Trash2, Edit2 } from 'lucide-react'
-import api from '@/lib/api'
+import React, { useState, useEffect, useMemo } from "react";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import DashboardLayout from "@/components/DashboardLayout";
+import SalesPersonForm from "@/components/forms/SalesPersonForm";
+import TanStackDataTable from "@/components/TanStackDataTable";
+import { Plus, Trash2, Edit2 } from "lucide-react";
+import api from "@/lib/api";
 
 function Salesmen() {
-  const [salesmen, setSalesmen] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [editingSalesman, setEditingSalesman] = useState(null)
+  const [salesmen, setSalesmen] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingSalesman, setEditingSalesman] = useState(null);
 
   const fetchSalesmen = async () => {
     try {
-      setLoading(true)
-      const res = await api.get('/salesmen')
-      setSalesmen(res.data)
+      setLoading(true);
+      const res = await api.get("/salesmen");
+      setSalesmen(res.data);
     } catch (error) {
-      console.error('Error fetching salesmen:', error)
+      console.error("Error fetching salesmen:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchSalesmen()
-  }, [])
+    fetchSalesmen();
+  }, []);
 
   const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this salesman?')) {
+    if (confirm("Are you sure you want to delete this salesman?")) {
       try {
-        await api.delete(`/salesmen/${id}`)
-        fetchSalesmen()
+        await api.delete(`/salesmen/${id}`);
+        fetchSalesmen();
       } catch (error) {
-        console.error('Error deleting salesman:', error)
-        alert('Failed to delete salesman')
+        console.error("Error deleting salesman:", error);
+        alert("Failed to delete salesman");
       }
     }
-  }
+  };
 
   const handleEdit = (salesman) => {
-    setEditingSalesman(salesman)
-    setShowForm(true)
-  }
+    setEditingSalesman(salesman);
+    setShowForm(true);
+  };
 
   const handleCloseForm = () => {
-    setShowForm(false)
-    setEditingSalesman(null)
-  }
+    setShowForm(false);
+    setEditingSalesman(null);
+  };
 
-  const columns = useMemo(() => [
-    {
-      accessorKey: 'name',
-      header: 'Name',
-      cell: ({ getValue }) => getValue(),
-      meta: { cellClassName: 'text-gray-900' },
-    },
-    {
-      accessorKey: 'designation',
-      header: 'Designation',
-    },
-    {
-      accessorKey: 'area',
-      header: 'Region',
-    },
-    {
-      accessorKey: 'contactNumber',
-      header: 'Mobile',
-    },
-    {
-      id: 'monthlyTarget',
-      header: 'Monthly Target',
-      accessorFn: (row) => ((row.productTarget && row.productTarget.Rs) || 0) / 1000,
-      cell: ({ getValue }) => `Rs ${getValue().toFixed(0)}K`,
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleEdit(row.original)}
-            className="text-blue-600 hover:text-blue-900"
-            title="Edit"
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDelete(row.original._id)}
-            className="text-red-600 hover:text-red-900"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      ),
-    },
-  ], [])
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: "Name",
+        cell: ({ getValue }) => getValue(),
+        meta: { cellClassName: "text-gray-900" },
+      },
+      {
+        accessorKey: "designation",
+        header: "Designation",
+      },
+      {
+        accessorKey: "area",
+        header: "Region",
+      },
+      {
+        accessorKey: "contactNumber",
+        header: "Mobile",
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleEdit(row.original)}
+              className="text-blue-600 hover:text-blue-900"
+              title="Edit"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleDelete(row.original._id)}
+              className="text-red-600 hover:text-red-900"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
     <DashboardLayout>
@@ -128,13 +125,17 @@ function Salesmen() {
         {showForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
-              <SalesPersonForm onClose={handleCloseForm} initialData={editingSalesman} onSuccess={fetchSalesmen} />
+              <SalesPersonForm
+                onClose={handleCloseForm}
+                initialData={editingSalesman}
+                onSuccess={fetchSalesmen}
+              />
             </div>
           </div>
         )}
       </div>
     </DashboardLayout>
-  )
+  );
 }
 
 export default function SalesmenPage() {
@@ -142,5 +143,5 @@ export default function SalesmenPage() {
     <ProtectedRoute>
       <Salesmen />
     </ProtectedRoute>
-  )
+  );
 }

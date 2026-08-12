@@ -1,55 +1,103 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
-import api from '@/lib/api'
+import React, { useState, useEffect } from "react";
+import { X } from "lucide-react";
+import api from "@/lib/api";
 
 export default function RegionForm({ onClose, initialData, onSuccess }) {
   const [formData, setFormData] = useState({
-    region: 'Lahore',
-  })
-  const [loading, setLoading] = useState(false)
+    region: "Lahore",
+  });
+  const [customRegionName, setCustomRegionName] = useState("");
+  const [showCustomRegion, setShowCustomRegion] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const regions = [
-    'Lahore',
-    'Rawalpindi/Islamabad',
-    'Kamalia/Samundari',
-    'Sahiwal',
-    'Multan',
-    'Karachi',
-  ]
+    "Lahore",
+    "Rawalpindi/Islamabad",
+    "Kamalia/Samundari",
+    "Sahiwal",
+    "Multan",
+    "Karachi",
+  ];
 
   useEffect(() => {
     if (initialData) {
+      const selectedRegion = initialData.region || "Lahore";
+      const isKnownRegion = regions.includes(selectedRegion);
+
       setFormData({
-        region: initialData.region || 'Lahore',
-      })
+        region: selectedRegion,
+      });
+      setCustomRegionName(isKnownRegion ? "" : selectedRegion);
+      setShowCustomRegion(!isKnownRegion && !!selectedRegion);
+    } else {
+      setFormData({ region: "Lahore" });
+      setCustomRegionName("");
+      setShowCustomRegion(false);
     }
-  }, [initialData])
+  }, [initialData]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+    const { name, value } = e.target;
+    setShowCustomRegion(false);
+    setCustomRegionName("");
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCustomRegionNameChange = (e) => {
+    const value = e.target.value;
+    setCustomRegionName(value);
+    setFormData((prev) => ({ ...prev, region: value }));
+  };
+
+  const toggleCustomRegion = () => {
+    setShowCustomRegion((prev) => {
+      const nextValue = !prev;
+
+      if (!nextValue) {
+        setCustomRegionName("");
+        setFormData((current) => ({ ...current, region: "Lahore" }));
+      } else {
+        const savedRegion =
+          formData.region && !regions.includes(formData.region)
+            ? formData.region
+            : "";
+        setCustomRegionName(savedRegion);
+        setFormData((current) => ({ ...current, region: savedRegion }));
+      }
+
+      return nextValue;
+    });
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    try {
-      if (initialData && initialData._id) {
-        await api.put(`/regions/${initialData._id}`, formData)
-      } else {
-        await api.post('/regions', formData)
-      }
-      if (onSuccess) onSuccess()
-      onClose()
-    } catch (error) {
-      console.error('Error saving region:', error)
-      alert('Failed to save region')
-    } finally {
-      setLoading(false)
+    e.preventDefault();
+    const trimmedRegion = formData.region.trim();
+
+    if (!trimmedRegion) {
+      alert("Please select a region or enter a new region name");
+      return;
     }
-  }
+
+    setLoading(true);
+    try {
+      const payload = { region: trimmedRegion };
+
+      if (initialData && initialData._id) {
+        await api.put(`/regions/${initialData._id}`, payload);
+      } else {
+        await api.post("/regions", payload);
+      }
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (error) {
+      console.error("Error saving region:", error);
+      alert("Failed to save region");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -71,21 +119,50 @@ export default function RegionForm({ onClose, initialData, onSuccess }) {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Select Region
             </label>
-            <div className="space-y-3">
-              {regions.map((region) => (
-                <label key={region} className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="region"
-                    value={region}
-                    checked={formData.region === region}
-                    onChange={handleChange}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm text-gray-700">{region}</span>
+
+            {!showCustomRegion && (
+              <div className="space-y-3">
+                {regions.map((region) => (
+                  <label
+                    key={region}
+                    className="flex items-center gap-3 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="region"
+                      value={region}
+                      checked={formData.region === region}
+                      onChange={handleChange}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm text-gray-700">{region}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={toggleCustomRegion}
+              className="mt-3 w-full px-4 py-2 border border-blue-200 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors"
+            >
+              {showCustomRegion ? "Use Existing Region" : "New Region"}
+            </button>
+
+            {showCustomRegion && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  New Region Name
                 </label>
-              ))}
-            </div>
+                <input
+                  type="text"
+                  value={customRegionName}
+                  onChange={handleCustomRegionNameChange}
+                  placeholder="Enter new region name"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
           </div>
 
           {/* Form Actions */}
@@ -99,13 +176,14 @@ export default function RegionForm({ onClose, initialData, onSuccess }) {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-60"
             >
-              Save Region
+              {loading ? "Saving..." : "Save Region"}
             </button>
           </div>
         </form>
       </div>
     </div>
-  )
+  );
 }

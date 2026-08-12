@@ -131,7 +131,9 @@ function Targets() {
       enableSorting: false,
       cell: ({ row }) => (
         <button
-          onClick={() => handleDeleteProduct(target, row.original.__targetIndex)}
+          onClick={() =>
+            handleDeleteProduct(target, row.original.__targetIndex)
+          }
           className="text-red-600 hover:text-red-700 font-medium"
         >
           Remove
@@ -234,7 +236,7 @@ function Targets() {
                           className="px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         >
                           {expandedTarget === target._id ? "Hide" : "View"}{" "}
-                          Products
+                          Details
                         </button>
                       </div>
                     </div>
@@ -250,7 +252,9 @@ function Targets() {
                           __targetIndex: index,
                         }))}
                         emptyMessage="No products found for this target."
-                        getRowId={(row) => row.product?._id || String(row.__targetIndex)}
+                        getRowId={(row) =>
+                          row.product?._id || String(row.__targetIndex)
+                        }
                         wrapperClassName="overflow-hidden"
                       />
 

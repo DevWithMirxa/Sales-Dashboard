@@ -97,6 +97,7 @@ export default function ReportsPage() {
   const [trendRows, setTrendRows] = useState([]);
   const [salesmen, setSalesmen] = useState([]);
   const [fetchError, setFetchError] = useState("");
+  const [selectedReportId, setSelectedReportId] = useState("salesperson");
 
   const fetchReportsData = async () => {
     try {
@@ -693,7 +694,6 @@ export default function ReportsPage() {
 
     sectionsToRender.forEach((section) => section.render(doc, ctx));
 
-    // Footer page numbers
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i += 1) {
@@ -715,16 +715,360 @@ export default function ReportsPage() {
     doc.save(`sales-${fileSlug}-${dateSlug}.pdf`);
   };
 
+  const selectedReport =
+    reportSections.find((section) => section.id === selectedReportId) ||
+    reportSections[0];
+
+  const renderSelectedReport = () => {
+    switch (selectedReport.id) {
+      case "summary":
+        return (
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-blue-600" />
+                {selectedReport.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {summaryCards.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <div
+                    key={card.title}
+                    className="rounded-lg border border-gray-200 p-4"
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-600">
+                        {card.title}
+                      </span>
+                      <Icon className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="text-2xl font-semibold text-gray-900">
+                      {card.value}
+                    </div>
+                    <p className="mt-2 text-sm text-gray-500">{card.detail}</p>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        );
+      case "trend":
+        return (
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-blue-600" />
+                Sales trend by {view === "yearly" ? "year" : view}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {periodSeries.length ? (
+                <div className="h-72 md:h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={periodSeries}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Bar dataKey="sales" fill="#2563eb" name="Sales" />
+                      <Bar dataKey="target" fill="#94a3b8" name="Target" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">
+                  No activity found for the selected period.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      case "salesperson":
+        return (
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserRound className="h-5 w-5 text-blue-600" />
+                {selectedReport.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {salespersonReport.length ? (
+                salespersonReport.map((item) => (
+                  <div
+                    key={item.salesperson}
+                    className="rounded-lg border border-gray-200 p-3"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          {item.salesperson}
+                        </p>
+                        <p className="text-sm text-gray-500">{item.region}</p>
+                      </div>
+                      <Badge variant="secondary">
+                        {formatPct(item.valueAchievement)}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
+                      <div>Target: {formatCurrency(item.targetValue)}</div>
+                      <div>Actual: {formatCurrency(item.saleValue)}</div>
+                      <div>
+                        Target volume: {formatNumber(item.targetVolume)} kg
+                      </div>
+                      <div>
+                        Actual volume: {formatNumber(item.saleVolume)} kg
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-gray-500">
+                  No salesperson comparison data is currently available.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      case "product":
+        return (
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-blue-600" />
+                {selectedReport.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {productBreakdown.length ? (
+                productBreakdown.map((item) => (
+                  <div
+                    key={item.product}
+                    className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {item.product}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {formatNumber(item.volume)} kg
+                      </p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="font-semibold text-gray-900">
+                        {formatCurrency(item.saleValue)}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Target {formatCurrency(item.targetValue)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-gray-500">
+                  No product data available yet.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      case "region":
+        return (
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-blue-600" />
+                {selectedReport.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {regionBreakdown.length ? (
+                regionBreakdown.map((item) => (
+                  <div
+                    key={item.region}
+                    className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {item.region}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {formatNumber(item.volume)} kg
+                      </p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="font-semibold text-gray-900">
+                        {formatCurrency(item.saleValue)}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Target {formatCurrency(item.targetValue)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-gray-500">
+                  No region breakdown available.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      case "recovery":
+        return (
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-blue-600" />
+                {selectedReport.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recoveryRows.length ? (
+                recoveryRows.map((item) => (
+                  <div
+                    key={item.salesperson}
+                    className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {item.salesperson}
+                      </p>
+                      <p className="text-sm text-gray-500">{item.region}</p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="font-semibold text-gray-900">
+                        {formatCurrency(item.recoveryAmount)}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {item.recoveryCustomers} customers
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-gray-500">
+                  No recovery history available.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      case "forecast":
+        return (
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Card className="border-gray-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                  Forecasting by product (next 4 months)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {forecastProductRows.length ? (
+                  forecastProductRows.map((item) => (
+                    <div
+                      key={item.product}
+                      className="rounded-lg border border-gray-200 p-3"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="font-semibold text-gray-900">
+                          {item.product}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Latest: {formatCurrency(item.history)}
+                        </p>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {[
+                          item.forecast1,
+                          item.forecast2,
+                          item.forecast3,
+                          item.forecast4,
+                        ].map((value, index) => (
+                          <Badge
+                            key={`${item.product}-${index}`}
+                            variant="secondary"
+                          >
+                            M{index + 1}: {formatCurrency(value)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-gray-500">
+                    No forecast history available.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-gray-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                  Forecasting by region (next 4 months)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {forecastRegionRows.length ? (
+                  forecastRegionRows.map((item) => (
+                    <div
+                      key={item.region}
+                      className="rounded-lg border border-gray-200 p-3"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="font-semibold text-gray-900">
+                          {item.region}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Latest: {formatCurrency(item.history)}
+                        </p>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {[
+                          item.forecast1,
+                          item.forecast2,
+                          item.forecast3,
+                          item.forecast4,
+                        ].map((value, index) => (
+                          <Badge
+                            key={`${item.region}-${index}`}
+                            variant="secondary"
+                          >
+                            M{index + 1}: {formatCurrency(value)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-gray-500">
+                    No region forecast data available.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="space-y-6">
+        <div className="space-y-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
                 Reports & Forecasting
               </h1>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="mt-1 text-sm text-gray-600">
                 Review sales performance, recovery, targets, and next-quarter
                 projections in one place.
               </p>
@@ -777,7 +1121,7 @@ export default function ReportsPage() {
           </div>
 
           {fetchError && !loading && (
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
               <span>{fetchError}</span>
               <Button
                 variant="outline"
@@ -796,331 +1140,36 @@ export default function ReportsPage() {
             </div>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-3">
-                {summaryCards.map((card) => {
-                  const Icon = card.icon;
-                  return (
-                    <Card
-                      key={card.title}
-                      className="border-gray-200 shadow-sm"
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Reports
+                  </h2>
+                  <span className="text-xs text-gray-500">
+                    {reportSections.length} available
+                  </span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {reportSections.map((section) => (
+                    <button
+                      key={section.id}
+                      type="button"
+                      onClick={() => setSelectedReportId(section.id)}
+                      className={`rounded-lg border px-4 py-3 text-left transition-colors ${
+                        selectedReportId === section.id
+                          ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                          : "border-gray-200 bg-white text-gray-700 hover:border-blue-200 hover:bg-blue-50"
+                      }`}
                     >
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-600">
-                          {card.title}
-                        </CardTitle>
-                        <Icon className="h-4 w-4 text-blue-600" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-semibold text-gray-900">
-                          {card.value}
-                        </div>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {card.detail}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                      <span className="block text-sm font-medium leading-5">
+                        {section.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <Card className="border-gray-200 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-blue-600" />
-                    Sales trend by {view === "yearly" ? "year" : view}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {periodSeries.length ? (
-                    <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={periodSeries}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="label" />
-                          <YAxis />
-                          <Tooltip />
-                          <Bar dataKey="sales" fill="#2563eb" name="Sales" />
-                          <Bar dataKey="target" fill="#94a3b8" name="Target" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-500">
-                      No activity found for the selected period.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <div className="grid gap-6 xl:grid-cols-2">
-                <Card className="border-gray-200 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <UserRound className="h-5 w-5 text-blue-600" />
-                      Salesperson comparison report
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {salespersonReport.length ? (
-                      salespersonReport.map((item) => (
-                        <div
-                          key={item.salesperson}
-                          className="rounded-lg border border-gray-200 p-3"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div>
-                              <p className="font-semibold text-gray-900">
-                                {item.salesperson}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                {item.region}
-                              </p>
-                            </div>
-                            <Badge variant="secondary">
-                              {formatPct(item.valueAchievement)}
-                            </Badge>
-                          </div>
-                          <div className="mt-3 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
-                            <div>
-                              Target: {formatCurrency(item.targetValue)}
-                            </div>
-                            <div>Actual: {formatCurrency(item.saleValue)}</div>
-                            <div>
-                              Target volume: {formatNumber(item.targetVolume)}{" "}
-                              kg
-                            </div>
-                            <div>
-                              Actual volume: {formatNumber(item.saleVolume)} kg
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-gray-500">
-                        No salesperson comparison data is currently available.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="border-gray-200 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Package className="h-5 w-5 text-blue-600" />
-                      Product-wise sales overview
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {productBreakdown.length ? (
-                      productBreakdown.map((item) => (
-                        <div
-                          key={item.product}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 p-3"
-                        >
-                          <div>
-                            <p className="font-semibold text-gray-900">
-                              {item.product}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {formatNumber(item.volume)} kg
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-gray-900">
-                              {formatCurrency(item.saleValue)}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              Target {formatCurrency(item.targetValue)}
-                            </p>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-gray-500">
-                        No product data available yet.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="grid gap-6 xl:grid-cols-2">
-                <Card className="border-gray-200 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5 text-blue-600" />
-                      Region-wise sales performance
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {regionBreakdown.length ? (
-                      regionBreakdown.map((item) => (
-                        <div
-                          key={item.region}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 p-3"
-                        >
-                          <div>
-                            <p className="font-semibold text-gray-900">
-                              {item.region}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {formatNumber(item.volume)} kg
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-gray-900">
-                              {formatCurrency(item.saleValue)}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              Target {formatCurrency(item.targetValue)}
-                            </p>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-gray-500">
-                        No region breakdown available.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="border-gray-200 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-blue-600" />
-                      Recovery overview
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {recoveryRows.length ? (
-                      recoveryRows.map((item) => (
-                        <div
-                          key={item.salesperson}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 p-3"
-                        >
-                          <div>
-                            <p className="font-semibold text-gray-900">
-                              {item.salesperson}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {item.region}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-gray-900">
-                              {formatCurrency(item.recoveryAmount)}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {item.recoveryCustomers} customers
-                            </p>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-gray-500">
-                        No recovery history available.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="grid gap-6 xl:grid-cols-2">
-                <Card className="border-gray-200 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-blue-600" />
-                      Forecasting by product (next 4 months)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {forecastProductRows.length ? (
-                      forecastProductRows.map((item) => (
-                        <div
-                          key={item.product}
-                          className="rounded-lg border border-gray-200 p-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold text-gray-900">
-                              {item.product}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              Latest: {formatCurrency(item.history)}
-                            </p>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {[
-                              item.forecast1,
-                              item.forecast2,
-                              item.forecast3,
-                              item.forecast4,
-                            ].map((value, index) => (
-                              <Badge
-                                key={`${item.product}-${index}`}
-                                variant="secondary"
-                              >
-                                M{index + 1}: {formatCurrency(value)}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-gray-500">
-                        No forecast history available.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="border-gray-200 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-blue-600" />
-                      Forecasting by region (next 4 months)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {forecastRegionRows.length ? (
-                      forecastRegionRows.map((item) => (
-                        <div
-                          key={item.region}
-                          className="rounded-lg border border-gray-200 p-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold text-gray-900">
-                              {item.region}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              Latest: {formatCurrency(item.history)}
-                            </p>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {[
-                              item.forecast1,
-                              item.forecast2,
-                              item.forecast3,
-                              item.forecast4,
-                            ].map((value, index) => (
-                              <Badge
-                                key={`${item.region}-${index}`}
-                                variant="secondary"
-                              >
-                                M{index + 1}: {formatCurrency(value)}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-gray-500">
-                        No region forecast data available.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+              <div className="pt-1">{renderSelectedReport()}</div>
             </>
           )}
         </div>

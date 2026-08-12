@@ -66,15 +66,30 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
     pricePerKg: "",
     packingKg: "",
   });
+  const [customProductName, setCustomProductName] = useState("");
+  const [showCustomProduct, setShowCustomProduct] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (initialData) {
+      const selectedName = initialData.name || "";
+      const isKnownProduct = productOptions.includes(selectedName);
+
       setFormData({
-        name: initialData.name || "",
+        name: selectedName,
         pricePerKg: initialData.pricePerKg || "",
         packingKg: initialData.packingKg || "",
       });
+      setCustomProductName(isKnownProduct ? "" : selectedName);
+      setShowCustomProduct(!isKnownProduct && !!selectedName);
+    } else {
+      setFormData({
+        name: "",
+        pricePerKg: "",
+        packingKg: "",
+      });
+      setCustomProductName("");
+      setShowCustomProduct(false);
     }
   }, [initialData]);
 
@@ -83,14 +98,56 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleProductNameChange = (e) => {
+    const { value } = e.target;
+    setShowCustomProduct(false);
+    setCustomProductName("");
+    setFormData((prev) => ({ ...prev, name: value }));
+  };
+
+  const handleCustomProductNameChange = (e) => {
+    const value = e.target.value;
+    setCustomProductName(value);
+    setFormData((prev) => ({ ...prev, name: value }));
+  };
+
+  const toggleCustomProduct = () => {
+    setShowCustomProduct((prev) => {
+      const nextValue = !prev;
+
+      if (!nextValue) {
+        setCustomProductName("");
+        setFormData((current) => ({ ...current, name: "" }));
+      } else {
+        const savedName =
+          formData.name && !productOptions.includes(formData.name)
+            ? formData.name
+            : "";
+        setCustomProductName(savedName);
+        setFormData((current) => ({ ...current, name: savedName }));
+      }
+
+      return nextValue;
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const trimmedName = formData.name.trim();
+
+    if (!trimmedName) {
+      alert("Please select a product or enter a new product name");
+      return;
+    }
+
     setLoading(true);
     try {
+      const payload = { ...formData, name: trimmedName };
+
       if (initialData && initialData._id) {
-        await api.put(`/products/${initialData._id}`, formData);
+        await api.put(`/products/${initialData._id}`, payload);
       } else {
-        await api.post("/products", formData);
+        await api.post("/products", payload);
       }
       if (onSuccess) onSuccess();
       onClose();
@@ -124,8 +181,8 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
             </label>
             <select
               name="name"
-              value={formData.name}
-              onChange={handleChange}
+              value={showCustomProduct ? "" : formData.name}
+              onChange={handleProductNameChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select a product</option>
@@ -135,6 +192,29 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
                 </option>
               ))}
             </select>
+
+            <button
+              type="button"
+              onClick={toggleCustomProduct}
+              className="mt-3 w-full px-4 py-2 border border-blue-200 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors"
+            >
+              {showCustomProduct ? "Use Existing Product" : "New Product"}
+            </button>
+
+            {showCustomProduct && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  New Product Name
+                </label>
+                <input
+                  type="text"
+                  value={customProductName}
+                  onChange={handleCustomProductNameChange}
+                  placeholder="Enter new product name"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
           </div>
 
           <div>
@@ -178,9 +258,10 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-60"
             >
-              Save Product
+              {loading ? "Saving..." : "Save Product"}
             </button>
           </div>
         </form>
