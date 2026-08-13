@@ -3,17 +3,17 @@
     {
       "Saleperson": "Dr. Asad Afzal",
       "Designation": "RSM",
-      "Region": "LHR, RWL, SWL"
+      "Region": "Lahore, Rawalpindi/Isalamabad, Sahiwal"
     },
     {
       "Saleperson": "Dr. Abdul Rehman",
       "Designation": "ASM",
-      "Region": "SWL"
+      "Region": "Sahiwal"
     },
     {
       "Saleperson": "Dr. Junaid",
       "Designation": "ASM",
-      "Region": "RWL"
+      "Region": "Rawalpindi/Isalamabad"
     },
     {
       "Saleperson": "Mr. Junaid",
@@ -33,17 +33,17 @@
     {
       "Saleperson": "Mr. Qadeer Ahmed",
       "Designation": "RSM",
-      "Region": "Fsd, Kamalia"
+      "Region": "Faisalabad, Kamalia"
     },
     {
       "Saleperson": "Mr. Ehsan Elahi",
       "Designation": "ASM",
-      "Region": "RWL"
+      "Region": "Rawalpindi/Isalamabad"
     },
     {
       "Saleperson": "Mr. Nasie Ejaz",
       "Designation": "ASM",
-      "Region": "LHR"
+      "Region": "Lahore"
     }
   ]
 }

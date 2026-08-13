@@ -8,8 +8,6 @@ import {
   BarChart,
   Bar,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -66,16 +64,88 @@ const monthLabel = (period) => {
     "Nov",
     "Dec",
   ];
-  return `${months[Number(month)]} ${year.slice(2)}`;
+  return `${months[Number(month) - 1] || "Unknown"} ${year}`;
 };
 
-const quarterLabel = (period) => {
-  const [year, month] = period.split("-");
-  const quarter = Math.ceil(Number(month) / 3);
-  return `Q${quarter} ${year}`;
+const viewLabel = (view) =>
+  view === "monthly"
+    ? "Monthly"
+    : view === "quarterly"
+      ? "Quarterly"
+      : "Annual";
+
+const viewUnit = (view) =>
+  view === "monthly" ? "month" : view === "quarterly" ? "quarter" : "year";
+
+const getYearFromPeriod = (period) =>
+  Number(String(period || "").split("-")[0]);
+
+const getMonthFromPeriod = (period) =>
+  Number(String(period || "").split("-")[1]);
+
+const getPeriodBucket = (period, view) => {
+  if (!period) return null;
+  const [yearText, monthText] = period.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (!year || !month) return null;
+
+  if (view === "quarterly") {
+    const quarter = Math.ceil(month / 3);
+    return {
+      key: `${year}-Q${quarter}`,
+      label: `Q${quarter} ${year}`,
+      sortValue: year * 10 + quarter,
+    };
+  }
+
+  if (view === "yearly") {
+    return {
+      key: String(year),
+      label: String(year),
+      sortValue: year,
+    };
+  }
+
+  return {
+    key: `${year}-${String(month).padStart(2, "0")}`,
+    label: monthLabel(period),
+    sortValue: year * 100 + month,
+  };
 };
 
-const yearLabel = (period) => period.split("-")[0];
+const getNextPeriodLabels = (bucket, view, count = 4) => {
+  if (!bucket) return Array.from({ length: count }, (_, i) => `P${i + 1}`);
+
+  if (view === "quarterly") {
+    const [, yearText, quarterText] =
+      bucket.key.match(/^(\d{4})-Q([1-4])$/) || [];
+    const startYear = Number(yearText);
+    const startQuarter = Number(quarterText);
+    return Array.from({ length: count }, (_, index) => {
+      const absoluteQuarter = startQuarter + index;
+      const year = startYear + Math.floor(absoluteQuarter / 4);
+      const quarter = (absoluteQuarter % 4) + 1;
+      return `Q${quarter} ${year}`;
+    });
+  }
+
+  if (view === "yearly") {
+    const year = Number(bucket.key);
+    return Array.from({ length: count }, (_, index) =>
+      String(year + index + 1),
+    );
+  }
+
+  const [yearText, monthText] = bucket.key.split("-");
+  const start = new Date(Number(yearText), Number(monthText) - 1, 1);
+  return Array.from({ length: count }, (_, index) => {
+    const next = new Date(start.getFullYear(), start.getMonth() + index + 1, 1);
+    return monthLabel(
+      `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`,
+    );
+  });
+};
 
 const buildForecast = (historyValues) => {
   if (!historyValues.length) return Array.from({ length: 4 }, () => 0);
@@ -98,6 +168,9 @@ export default function ReportsPage() {
   const [salesmen, setSalesmen] = useState([]);
   const [fetchError, setFetchError] = useState("");
   const [selectedReportId, setSelectedReportId] = useState("salesperson");
+  const [selectedYear, setSelectedYear] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [selectedQuarter, setSelectedQuarter] = useState("");
 
   const fetchReportsData = async () => {
     try {
@@ -105,7 +178,7 @@ export default function ReportsPage() {
       setFetchError("");
 
       const results = await Promise.allSettled([
-        api.get("/trends", { params: { limit: 1000 } }),
+        api.get("/trends", { params: { limit: 50000 } }),
         api.get("/salesmen"),
       ]);
 
@@ -150,40 +223,149 @@ export default function ReportsPage() {
     );
   }, [salesmen]);
 
+  const periodOptions = useMemo(() => {
+    const periods = [
+      ...new Set((trendRows || []).map((row) => row.period).filter(Boolean)),
+    ].sort();
+
+    const years = [...new Set(periods.map(getYearFromPeriod))]
+      .filter(Boolean)
+      .sort((left, right) => left - right);
+
+    const monthsByYear = {};
+    const quartersByYear = {};
+
+    periods.forEach((period) => {
+      const year = getYearFromPeriod(period);
+      const month = getMonthFromPeriod(period);
+      if (!year || !month) return;
+
+      if (!monthsByYear[year]) monthsByYear[year] = new Set();
+      monthsByYear[year].add(month);
+
+      if (!quartersByYear[year]) quartersByYear[year] = new Set();
+      quartersByYear[year].add(Math.ceil(month / 3));
+    });
+
+    return {
+      years,
+      monthsByYear: Object.fromEntries(
+        Object.entries(monthsByYear).map(([year, months]) => [
+          year,
+          [...months].sort((left, right) => left - right),
+        ]),
+      ),
+      quartersByYear: Object.fromEntries(
+        Object.entries(quartersByYear).map(([year, quarters]) => [
+          year,
+          [...quarters].sort((left, right) => left - right),
+        ]),
+      ),
+    };
+  }, [trendRows]);
+
+  useEffect(() => {
+    if (!periodOptions.years.length) return;
+
+    const latestYear = String(
+      periodOptions.years[periodOptions.years.length - 1],
+    );
+    const year = selectedYear || latestYear;
+    const availableMonths = periodOptions.monthsByYear[year] || [];
+    const availableQuarters = periodOptions.quartersByYear[year] || [];
+
+    if (!selectedYear || !periodOptions.years.includes(Number(selectedYear))) {
+      setSelectedYear(latestYear);
+      return;
+    }
+
+    if (
+      view === "monthly" &&
+      availableMonths.length &&
+      !availableMonths.includes(Number(selectedMonth))
+    ) {
+      setSelectedMonth(String(availableMonths[availableMonths.length - 1]));
+    }
+
+    if (
+      view === "quarterly" &&
+      availableQuarters.length &&
+      !availableQuarters.includes(Number(selectedQuarter))
+    ) {
+      setSelectedQuarter(
+        String(availableQuarters[availableQuarters.length - 1]),
+      );
+    }
+  }, [periodOptions, selectedYear, selectedMonth, selectedQuarter, view]);
+
   const periodSeries = useMemo(() => {
     const groups = {};
 
     trendRows.forEach((row) => {
-      const label =
-        view === "monthly"
-          ? monthLabel(row.period)
-          : view === "quarterly"
-            ? quarterLabel(row.period)
-            : yearLabel(row.period);
+      const bucket = getPeriodBucket(row.period, view);
+      if (!bucket) return;
 
-      if (!groups[label]) {
-        groups[label] = {
-          label,
+      if (!groups[bucket.key]) {
+        groups[bucket.key] = {
+          key: bucket.key,
+          label: bucket.label,
+          sortValue: bucket.sortValue,
           sales: 0,
           target: 0,
           volume: 0,
         };
       }
 
-      groups[label].sales += Number(row.saleValueRs || 0);
-      groups[label].target += Number(row.targetValueRs || 0);
-      groups[label].volume += Number(row.saleVolumeKg || 0);
+      groups[bucket.key].sales += Number(row.saleValueRs || 0);
+      groups[bucket.key].target += Number(row.targetValueRs || 0);
+      groups[bucket.key].volume += Number(row.saleVolumeKg || 0);
     });
 
-    return Object.values(groups).sort((left, right) =>
-      left.label.localeCompare(right.label),
+    return Object.values(groups).sort(
+      (left, right) => left.sortValue - right.sortValue,
     );
   }, [trendRows, view]);
+
+  const activePeriod = useMemo(() => {
+    if (!selectedYear) {
+      return periodSeries.length ? periodSeries[periodSeries.length - 1] : null;
+    }
+
+    const key =
+      view === "monthly"
+        ? `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`
+        : view === "quarterly"
+          ? `${selectedYear}-Q${selectedQuarter}`
+          : selectedYear;
+
+    return (
+      periodSeries.find((period) => period.key === key) ||
+      periodSeries[periodSeries.length - 1] ||
+      null
+    );
+  }, [periodSeries, selectedYear, selectedMonth, selectedQuarter, view]);
+
+  const reportPeriodLabel =
+    activePeriod?.label || `No ${viewUnit(view)} selected`;
+
+  const filteredTrendRows = useMemo(() => {
+    if (!activePeriod) return [];
+    return trendRows.filter(
+      (row) => getPeriodBucket(row.period, view)?.key === activePeriod.key,
+    );
+  }, [trendRows, view, activePeriod]);
+
+  const availableMonths = selectedYear
+    ? periodOptions.monthsByYear[selectedYear] || []
+    : [];
+  const availableQuarters = selectedYear
+    ? periodOptions.quartersByYear[selectedYear] || []
+    : [];
 
   const salespersonReport = useMemo(() => {
     const groups = {};
 
-    trendRows.forEach((row) => {
+    filteredTrendRows.forEach((row) => {
       const name = row.salesperson || "Unassigned";
       if (!groups[name]) {
         groups[name] = {
@@ -213,12 +395,12 @@ export default function ReportsPage() {
             : 0,
       }))
       .sort((left, right) => right.saleValue - left.saleValue);
-  }, [trendRows, salesmanLookup]);
+  }, [filteredTrendRows, salesmanLookup]);
 
   const productBreakdown = useMemo(() => {
     const groups = {};
 
-    trendRows.forEach((row) => {
+    filteredTrendRows.forEach((row) => {
       const name = row.product || "Unknown";
       if (!groups[name]) {
         groups[name] = {
@@ -237,12 +419,12 @@ export default function ReportsPage() {
     return Object.values(groups).sort(
       (left, right) => right.saleValue - left.saleValue,
     );
-  }, [trendRows]);
+  }, [filteredTrendRows]);
 
   const regionBreakdown = useMemo(() => {
     const groups = {};
 
-    trendRows.forEach((row) => {
+    filteredTrendRows.forEach((row) => {
       const region = salesmanLookup.get(row.salesperson)?.area || "Unknown";
       if (!groups[region]) {
         groups[region] = {
@@ -261,7 +443,7 @@ export default function ReportsPage() {
     return Object.values(groups).sort(
       (left, right) => right.saleValue - left.saleValue,
     );
-  }, [trendRows, salesmanLookup]);
+  }, [filteredTrendRows, salesmanLookup]);
 
   const recoveryRows = useMemo(() => {
     return (salesmen || [])
@@ -279,71 +461,94 @@ export default function ReportsPage() {
 
     trendRows.forEach((row) => {
       const product = row.product || "Unknown";
+      const bucket = getPeriodBucket(row.period, view);
+      if (!bucket) return;
       if (!grouped[product]) {
         grouped[product] = {};
       }
 
-      grouped[product][row.period] =
-        Number(grouped[product][row.period] || 0) +
+      if (!grouped[product][bucket.key]) {
+        grouped[product][bucket.key] = {
+          label: bucket.label,
+          sortValue: bucket.sortValue,
+          value: 0,
+        };
+      }
+
+      grouped[product][bucket.key].value =
+        Number(grouped[product][bucket.key].value || 0) +
         Number(row.saleValueRs || 0);
     });
 
     return Object.entries(grouped)
-      .map(([product, monthlyValues]) => {
-        const orderedPeriods = Object.keys(monthlyValues).sort().slice(-6);
-        const history = orderedPeriods.map((period) => monthlyValues[period]);
+      .map(([product, periodValues]) => {
+        const orderedPeriods = Object.values(periodValues)
+          .sort((left, right) => left.sortValue - right.sortValue)
+          .slice(-6);
+        const history = orderedPeriods.map((period) => period.value);
         const forecast = buildForecast(history);
 
         return {
           product,
           history: history[history.length - 1] || 0,
-          forecast1: forecast[0],
-          forecast2: forecast[1],
-          forecast3: forecast[2],
-          forecast4: forecast[3],
+          latestPeriod: orderedPeriods[orderedPeriods.length - 1]?.label || "-",
+          forecast,
+          forecastLabels: getNextPeriodLabels(activePeriod, view),
         };
       })
       .sort((left, right) => right.history - left.history)
       .slice(0, 6);
-  }, [trendRows]);
+  }, [trendRows, view, activePeriod]);
 
   const forecastRegionRows = useMemo(() => {
     const grouped = {};
 
     trendRows.forEach((row) => {
       const region = salesmanLookup.get(row.salesperson)?.area || "Unknown";
+      const bucket = getPeriodBucket(row.period, view);
+      if (!bucket) return;
       if (!grouped[region]) {
         grouped[region] = {};
       }
 
-      grouped[region][row.period] =
-        Number(grouped[region][row.period] || 0) + Number(row.saleValueRs || 0);
+      if (!grouped[region][bucket.key]) {
+        grouped[region][bucket.key] = {
+          label: bucket.label,
+          sortValue: bucket.sortValue,
+          value: 0,
+        };
+      }
+
+      grouped[region][bucket.key].value =
+        Number(grouped[region][bucket.key].value || 0) +
+        Number(row.saleValueRs || 0);
     });
 
     return Object.entries(grouped)
-      .map(([region, monthlyValues]) => {
-        const orderedPeriods = Object.keys(monthlyValues).sort().slice(-6);
-        const history = orderedPeriods.map((period) => monthlyValues[period]);
+      .map(([region, periodValues]) => {
+        const orderedPeriods = Object.values(periodValues)
+          .sort((left, right) => left.sortValue - right.sortValue)
+          .slice(-6);
+        const history = orderedPeriods.map((period) => period.value);
         const forecast = buildForecast(history);
 
         return {
           region,
           history: history[history.length - 1] || 0,
-          forecast1: forecast[0],
-          forecast2: forecast[1],
-          forecast3: forecast[2],
-          forecast4: forecast[3],
+          latestPeriod: orderedPeriods[orderedPeriods.length - 1]?.label || "-",
+          forecast,
+          forecastLabels: getNextPeriodLabels(activePeriod, view),
         };
       })
       .sort((left, right) => right.history - left.history);
-  }, [trendRows, salesmanLookup]);
+  }, [trendRows, salesmanLookup, view, activePeriod]);
 
   const totals = useMemo(() => {
-    const saleValue = trendRows.reduce(
+    const saleValue = filteredTrendRows.reduce(
       (sum, row) => sum + Number(row.saleValueRs || 0),
       0,
     );
-    const targetValue = trendRows.reduce(
+    const targetValue = filteredTrendRows.reduce(
       (sum, row) => sum + Number(row.targetValueRs || 0),
       0,
     );
@@ -354,13 +559,13 @@ export default function ReportsPage() {
     const achievement = targetValue > 0 ? (saleValue / targetValue) * 100 : 0;
 
     return { saleValue, targetValue, recoveryAmount, achievement };
-  }, [trendRows, recoveryRows]);
+  }, [filteredTrendRows, recoveryRows]);
 
   const summaryCards = [
     {
       title: "Sales Value",
       value: formatCurrency(totals.saleValue),
-      detail: `${formatNumber(trendRows.reduce((sum, row) => sum + Number(row.saleVolumeKg || 0), 0))} kg sold`,
+      detail: `${formatNumber(filteredTrendRows.reduce((sum, row) => sum + Number(row.saleVolumeKg || 0), 0))} kg sold`,
       icon: Wallet,
     },
     {
@@ -388,12 +593,13 @@ export default function ReportsPage() {
         label: "Summary",
         fileSlug: "summary",
         render: (doc, ctx) => {
-          ctx.addSectionTitle(doc, ctx, "Summary");
+          ctx.addSectionTitle(doc, ctx, `Summary - ${reportPeriodLabel}`);
           ctx.addTable(
             doc,
             ctx,
             ["Metric", "Value"],
             [
+              ["Report Period", reportPeriodLabel],
               ["Sales Value", formatCurrency(totals.saleValue)],
               ["Target Value", formatCurrency(totals.targetValue)],
               ["Achievement", formatPct(totals.achievement)],
@@ -401,7 +607,7 @@ export default function ReportsPage() {
               [
                 "Volume Sold",
                 `${formatNumber(
-                  trendRows.reduce(
+                  filteredTrendRows.reduce(
                     (sum, row) => sum + Number(row.saleVolumeKg || 0),
                     0,
                   ),
@@ -447,7 +653,11 @@ export default function ReportsPage() {
         label: "Salesperson comparison report",
         fileSlug: "salesperson-comparison",
         render: (doc, ctx) => {
-          ctx.addSectionTitle(doc, ctx, "Salesperson comparison report");
+          ctx.addSectionTitle(
+            doc,
+            ctx,
+            `Salesperson comparison report - ${reportPeriodLabel}`,
+          );
           if (salespersonReport.length) {
             ctx.addTable(
               doc,
@@ -487,7 +697,11 @@ export default function ReportsPage() {
         label: "Product-wise sales overview",
         fileSlug: "product-overview",
         render: (doc, ctx) => {
-          ctx.addSectionTitle(doc, ctx, "Product-wise sales overview");
+          ctx.addSectionTitle(
+            doc,
+            ctx,
+            `Product-wise sales overview - ${reportPeriodLabel}`,
+          );
           if (productBreakdown.length) {
             ctx.addTable(
               doc,
@@ -510,7 +724,11 @@ export default function ReportsPage() {
         label: "Region-wise sales performance",
         fileSlug: "region-performance",
         render: (doc, ctx) => {
-          ctx.addSectionTitle(doc, ctx, "Region-wise sales performance");
+          ctx.addSectionTitle(
+            doc,
+            ctx,
+            `Region-wise sales performance - ${reportPeriodLabel}`,
+          );
           if (regionBreakdown.length) {
             ctx.addTable(
               doc,
@@ -533,7 +751,11 @@ export default function ReportsPage() {
         label: "Recovery overview",
         fileSlug: "recovery-overview",
         render: (doc, ctx) => {
-          ctx.addSectionTitle(doc, ctx, "Recovery overview");
+          ctx.addSectionTitle(
+            doc,
+            ctx,
+            `Recovery overview - ${reportPeriodLabel}`,
+          );
           if (recoveryRows.length) {
             ctx.addTable(
               doc,
@@ -564,20 +786,23 @@ export default function ReportsPage() {
           ctx.addSectionTitle(
             doc,
             ctx,
-            "Forecasting by product (next 4 months)",
+            `Forecasting by product (next 4 ${viewUnit(view)}s)`,
           );
           if (forecastProductRows.length) {
             ctx.addTable(
               doc,
               ctx,
-              ["Product", "Latest", "M1", "M2", "M3", "M4"],
+              [
+                "Product",
+                "Latest Period",
+                "Latest Sales",
+                ...getNextPeriodLabels(activePeriod, view),
+              ],
               forecastProductRows.map((item) => [
                 item.product,
+                item.latestPeriod,
                 formatCurrency(item.history),
-                formatCurrency(item.forecast1),
-                formatCurrency(item.forecast2),
-                formatCurrency(item.forecast3),
-                formatCurrency(item.forecast4),
+                ...item.forecast.map(formatCurrency),
               ]),
             );
           } else {
@@ -587,20 +812,23 @@ export default function ReportsPage() {
           ctx.addSectionTitle(
             doc,
             ctx,
-            "Forecasting by region (next 4 months)",
+            `Forecasting by region (next 4 ${viewUnit(view)}s)`,
           );
           if (forecastRegionRows.length) {
             ctx.addTable(
               doc,
               ctx,
-              ["Region", "Latest", "M1", "M2", "M3", "M4"],
+              [
+                "Region",
+                "Latest Period",
+                "Latest Sales",
+                ...getNextPeriodLabels(activePeriod, view),
+              ],
               forecastRegionRows.map((item) => [
                 item.region,
+                item.latestPeriod,
                 formatCurrency(item.history),
-                formatCurrency(item.forecast1),
-                formatCurrency(item.forecast2),
-                formatCurrency(item.forecast3),
-                formatCurrency(item.forecast4),
+                ...item.forecast.map(formatCurrency),
               ]),
             );
           } else {
@@ -611,8 +839,10 @@ export default function ReportsPage() {
     ],
     [
       totals,
-      trendRows,
+      filteredTrendRows,
       view,
+      activePeriod,
+      reportPeriodLabel,
       periodSeries,
       salespersonReport,
       productBreakdown,
@@ -652,7 +882,7 @@ export default function ReportsPage() {
     doc.setFont(undefined, "normal");
     doc.setTextColor(100);
     doc.text(
-      `Sales trend view: ${view.charAt(0).toUpperCase() + view.slice(1)}  |  Generated: ${generatedAt}`,
+      `View: ${viewLabel(view)}  |  Report period: ${reportPeriodLabel}  |  Generated: ${generatedAt}`,
       marginX,
       ctx.cursorY + 16,
     );
@@ -728,6 +958,7 @@ export default function ReportsPage() {
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-blue-600" />
                 {selectedReport.label}
+                <Badge variant="outline">{reportPeriodLabel}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -760,7 +991,7 @@ export default function ReportsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-blue-600" />
-                Sales trend by {view === "yearly" ? "year" : view}
+                Sales trend by {viewUnit(view)}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -792,6 +1023,7 @@ export default function ReportsPage() {
               <CardTitle className="flex items-center gap-2">
                 <UserRound className="h-5 w-5 text-blue-600" />
                 {selectedReport.label}
+                <Badge variant="outline">{reportPeriodLabel}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -839,6 +1071,7 @@ export default function ReportsPage() {
               <CardTitle className="flex items-center gap-2">
                 <Package className="h-5 w-5 text-blue-600" />
                 {selectedReport.label}
+                <Badge variant="outline">{reportPeriodLabel}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -881,6 +1114,7 @@ export default function ReportsPage() {
               <CardTitle className="flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-blue-600" />
                 {selectedReport.label}
+                <Badge variant="outline">{reportPeriodLabel}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -923,6 +1157,7 @@ export default function ReportsPage() {
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-blue-600" />
                 {selectedReport.label}
+                <Badge variant="outline">{reportPeriodLabel}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -963,7 +1198,7 @@ export default function ReportsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-blue-600" />
-                  Forecasting by product (next 4 months)
+                  Forecasting by product (next 4 {viewUnit(view)}s)
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -978,21 +1213,18 @@ export default function ReportsPage() {
                           {item.product}
                         </p>
                         <p className="text-sm text-gray-500">
-                          Latest: {formatCurrency(item.history)}
+                          Latest {item.latestPeriod}:{" "}
+                          {formatCurrency(item.history)}
                         </p>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {[
-                          item.forecast1,
-                          item.forecast2,
-                          item.forecast3,
-                          item.forecast4,
-                        ].map((value, index) => (
+                        {item.forecast.map((value, index) => (
                           <Badge
                             key={`${item.product}-${index}`}
                             variant="secondary"
                           >
-                            M{index + 1}: {formatCurrency(value)}
+                            {item.forecastLabels[index]}:{" "}
+                            {formatCurrency(value)}
                           </Badge>
                         ))}
                       </div>
@@ -1010,7 +1242,7 @@ export default function ReportsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-blue-600" />
-                  Forecasting by region (next 4 months)
+                  Forecasting by region (next 4 {viewUnit(view)}s)
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1025,21 +1257,18 @@ export default function ReportsPage() {
                           {item.region}
                         </p>
                         <p className="text-sm text-gray-500">
-                          Latest: {formatCurrency(item.history)}
+                          Latest {item.latestPeriod}:{" "}
+                          {formatCurrency(item.history)}
                         </p>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {[
-                          item.forecast1,
-                          item.forecast2,
-                          item.forecast3,
-                          item.forecast4,
-                        ].map((value, index) => (
+                        {item.forecast.map((value, index) => (
                           <Badge
                             key={`${item.region}-${index}`}
                             variant="secondary"
                           >
-                            M{index + 1}: {formatCurrency(value)}
+                            {item.forecastLabels[index]}:{" "}
+                            {formatCurrency(value)}
                           </Badge>
                         ))}
                       </div>
@@ -1069,9 +1298,15 @@ export default function ReportsPage() {
                 Reports & Forecasting
               </h1>
               <p className="mt-1 text-sm text-gray-600">
-                Review sales performance, recovery, targets, and next-quarter
-                projections in one place.
+                Review sales performance, recovery, targets, and forecasts for
+                the selected reporting period.
               </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">{viewLabel(view)}</Badge>
+                <Badge variant="outline">
+                  Report period: {reportPeriodLabel}
+                </Badge>
+              </div>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Tabs

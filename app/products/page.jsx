@@ -1,103 +1,103 @@
-'use client'
+"use client";
 
-import React, { useState, useEffect, useMemo } from 'react'
-import { ProtectedRoute } from '@/components/ProtectedRoute'
-import DashboardLayout from '@/components/DashboardLayout'
-import ProductForm from '@/components/forms/ProductForm'
-import TanStackDataTable from '@/components/TanStackDataTable'
-import { Plus, Trash2, Edit2 } from 'lucide-react'
-import api from '@/lib/api'
+import React, { useState, useEffect, useMemo } from "react";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import DashboardLayout from "@/components/DashboardLayout";
+import ProductForm from "@/components/forms/ProductForm";
+import TanStackDataTable from "@/components/TanStackDataTable";
+import { Plus, Trash2, Edit2 } from "lucide-react";
+import api from "@/lib/api";
 
 function Products() {
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [editingProduct, setEditingProduct] = useState(null)
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
 
   const fetchProducts = async () => {
     try {
-      setLoading(true)
-      const res = await api.get('/products')
-      setProducts(res.data)
+      setLoading(true);
+      const res = await api.get("/products");
+      setProducts(res.data);
     } catch (error) {
-      console.error('Error fetching products:', error)
+      console.error("Error fetching products:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchProducts()
-  }, [])
+    fetchProducts();
+  }, []);
 
   const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this product?')) {
+    if (confirm("Are you sure you want to delete this product?")) {
       try {
-        await api.delete(`/products/${id}`)
-        fetchProducts()
+        await api.delete(`/products/${id}`);
+        fetchProducts();
       } catch (error) {
-        console.error('Error deleting product:', error)
-        alert('Failed to delete product')
+        console.error("Error deleting product:", error);
+        alert("Failed to delete product");
       }
     }
-  }
+  };
 
   const handleEdit = (product) => {
-    setEditingProduct(product)
-    setShowForm(true)
-  }
+    setEditingProduct(product);
+    setShowForm(true);
+  };
 
   const handleCloseForm = () => {
-    setShowForm(false)
-    setEditingProduct(null)
-  }
+    setShowForm(false);
+    setEditingProduct(null);
+  };
 
-  const columns = useMemo(() => [
-    {
-      accessorKey: 'name',
-      header: 'Product Name',
-      cell: ({ getValue }) => <span className="text-gray-900">{getValue()}</span>,
-      meta: { cellClassName: 'text-gray-900' },
-    },
-    {
-      accessorKey: 'pricePerKg',
-      header: 'Price (Rs/Kg)',
-      cell: ({ getValue }) => `Rs ${getValue()}`,
-    },
-    {
-      accessorKey: 'packingKg',
-      header: 'Packing Size (Kg)',
-      cell: ({ getValue }) => `${getValue()} Kg`,
-    },
-    {
-      accessorKey: 'description',
-      header: 'Description',
-      cell: ({ getValue }) => getValue() || '-',
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleEdit(row.original)}
-            className="text-blue-600 hover:text-blue-900"
-            title="Edit"
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDelete(row.original._id)}
-            className="text-red-600 hover:text-red-900"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      ),
-    },
-  ], [])
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: "Product Name",
+        cell: ({ getValue }) => (
+          <span className="text-gray-900">{getValue()}</span>
+        ),
+        meta: { cellClassName: "text-gray-900" },
+      },
+      {
+        accessorKey: "pricePerKg",
+        header: "Price (Rs/Kg)",
+        cell: ({ getValue }) => `Rs ${getValue()}`,
+      },
+      {
+        accessorKey: "packingKg",
+        header: "Packing Size (Kg)",
+        cell: ({ getValue }) => `${getValue()} Kg`,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleEdit(row.original)}
+              className="text-blue-600 hover:text-blue-900"
+              title="Edit"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleDelete(row.original._id)}
+              className="text-red-600 hover:text-red-900"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
     <DashboardLayout>
@@ -125,13 +125,17 @@ function Products() {
         {showForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
-              <ProductForm onClose={handleCloseForm} initialData={editingProduct} onSuccess={fetchProducts} />
+              <ProductForm
+                onClose={handleCloseForm}
+                initialData={editingProduct}
+                onSuccess={fetchProducts}
+              />
             </div>
           </div>
         )}
       </div>
     </DashboardLayout>
-  )
+  );
 }
 
 export default function ProductsPage() {
@@ -139,5 +143,5 @@ export default function ProductsPage() {
     <ProtectedRoute>
       <Products />
     </ProtectedRoute>
-  )
+  );
 }

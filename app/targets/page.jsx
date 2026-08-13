@@ -97,6 +97,29 @@ function Targets() {
     products.reduce((sum, p) => sum + (p.targetRevenue || 0), 0);
   const calculateTotalQuantity = (products) =>
     products.reduce((sum, p) => sum + (p.targetQuantity || 0), 0);
+  const getStatusConfig = (status) => {
+    const normalized = String(status || "active").toLowerCase();
+
+    if (normalized === "inactive") {
+      return {
+        label: "Inactive",
+        className: "bg-gray-100 text-gray-700 border border-gray-200",
+      };
+    }
+
+    if (normalized === "completed") {
+      return {
+        label: "Completed",
+        className: "bg-blue-100 text-blue-700 border border-blue-200",
+      };
+    }
+
+    return {
+      label: "Active",
+      className: "bg-green-100 text-green-700 border border-green-200",
+    };
+  };
+
   const getProductColumns = (target) => [
     {
       id: "productName",
@@ -169,6 +192,7 @@ function Targets() {
             {targets.map((target) => {
               const salesmanName = target.assignedTo?.name || "Unassigned";
               const salesmanInitial = salesmanName.charAt(0).toUpperCase();
+              const statusConfig = getStatusConfig(target.status);
               // region is a plain string on the target; fall back to the salesman's area if not set
               const regionLabel =
                 target.region || target.assignedTo?.area || "-";
@@ -189,15 +213,22 @@ function Targets() {
                             </span>
                           </div>
                           <div>
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              {salesmanName}
-                              {target.targetName ? (
-                                <span className="ml-2 text-sm font-normal text-gray-500">
-                                  ({target.targetName})
-                                </span>
-                              ) : null}
-                            </h3>
-                            <div className="flex gap-4 text-sm text-gray-600">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-lg font-semibold text-gray-900">
+                                {salesmanName}
+                                {target.targetName ? (
+                                  <span className="ml-2 text-sm font-normal text-gray-500">
+                                    ({target.targetName})
+                                  </span>
+                                ) : null}
+                              </h3>
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusConfig.className}`}
+                              >
+                                {statusConfig.label}
+                              </span>
+                            </div>
+                            <div className="flex gap-4 text-sm text-gray-600 flex-wrap">
                               <span>Region: {regionLabel}</span>
                               <span>{target.period}</span>
                               <span>{target.products.length} Products</span>
