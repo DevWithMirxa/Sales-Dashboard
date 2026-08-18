@@ -1,189 +1,191 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import React, { useState } from "react";
+import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const regions = [
+  "Lahore",
+  "Rawalpindi/Islamabad",
+  "Kamalia/Samundari",
+  "Sahiwal",
+  "Multan",
+  "Karachi",
+];
 
 export default function RegionForm({ onClose, initialData, onSuccess }) {
-  const [formData, setFormData] = useState({
-    region: "Lahore",
-  });
-  const [customRegionName, setCustomRegionName] = useState("");
-  const [showCustomRegion, setShowCustomRegion] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const isEdit = Boolean(initialData?._id);
 
-  const regions = [
-    "Lahore",
-    "Rawalpindi/Islamabad",
-    "Kamalia/Samundari",
-    "Sahiwal",
-    "Multan",
-    "Karachi",
-  ];
-
-  useEffect(() => {
-    if (initialData) {
-      const selectedRegion = initialData.region || "Lahore";
-      const isKnownRegion = regions.includes(selectedRegion);
-
-      setFormData({
-        region: selectedRegion,
-      });
-      setCustomRegionName(isKnownRegion ? "" : selectedRegion);
-      setShowCustomRegion(!isKnownRegion && !!selectedRegion);
-    } else {
-      setFormData({ region: "Lahore" });
-      setCustomRegionName("");
-      setShowCustomRegion(false);
-    }
-  }, [initialData]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setShowCustomRegion(false);
-    setCustomRegionName("");
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  // Pre-fill from an existing region, detecting whether it's one of the
+  // known options or a custom name.
+  const buildInitial = () => {
+    const selectedRegion = initialData?.region || "Lahore";
+    const known = regions.includes(selectedRegion);
+    return {
+      region: known ? selectedRegion : "Lahore",
+      customRegionName: known ? "" : selectedRegion,
+      showCustomRegion: !known && !!selectedRegion,
+    };
   };
 
-  const handleCustomRegionNameChange = (e) => {
-    const value = e.target.value;
-    setCustomRegionName(value);
-    setFormData((prev) => ({ ...prev, region: value }));
+  const [initial] = useState(buildInitial);
+  const [region, setRegion] = useState(initial.region);
+  const [customRegionName, setCustomRegionName] = useState(
+    initial.customRegionName,
+  );
+  const [showCustomRegion, setShowCustomRegion] = useState(
+    initial.showCustomRegion,
+  );
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const effectiveRegion = showCustomRegion ? customRegionName : region;
+
+  const handleRegionSelect = (value) => {
+    setShowCustomRegion(false);
+    setCustomRegionName("");
+    setRegion(value);
+  };
+
+  const handleCustomChange = (e) => {
+    setCustomRegionName(e.target.value);
+    setErrors((prev) => ({ ...prev, region: undefined }));
   };
 
   const toggleCustomRegion = () => {
     setShowCustomRegion((prev) => {
-      const nextValue = !prev;
-
-      if (!nextValue) {
-        setCustomRegionName("");
-        setFormData((current) => ({ ...current, region: "Lahore" }));
-      } else {
-        const savedRegion =
-          formData.region && !regions.includes(formData.region)
-            ? formData.region
-            : "";
-        setCustomRegionName(savedRegion);
-        setFormData((current) => ({ ...current, region: savedRegion }));
-      }
-
-      return nextValue;
+      const next = !prev;
+      if (!next) setCustomRegionName("");
+      return next;
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const trimmedRegion = formData.region.trim();
-
-    if (!trimmedRegion) {
-      alert("Please select a region or enter a new region name");
+    setFormError("");
+    const value = effectiveRegion.trim();
+    if (!value) {
+      setErrors({ region: "Please select or enter a region" });
       return;
     }
 
-    setLoading(true);
+    setSubmitting(true);
     try {
-      const payload = { region: trimmedRegion };
-
-      if (initialData && initialData._id) {
+      const payload = { region: value };
+      if (isEdit) {
         await api.put(`/regions/${initialData._id}`, payload);
       } else {
         await api.post("/regions", payload);
       }
-      if (onSuccess) onSuccess();
+      onSuccess();
       onClose();
-    } catch (error) {
-      console.error("Error saving region:", error);
-      alert("Failed to save region");
+    } catch (err) {
+      console.error("Save failed:", err);
+      setFormError(
+        err?.response?.data?.message ||
+          "Unable to save this region. Please try again.",
+      );
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">Add Region</h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Edit" : "Add New"} Region</DialogTitle>
+          <DialogDescription>
+            {isEdit
+              ? "Update the region details below and save your changes."
+              : "Fill in the details below to add a new region."}
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Form Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Region
-            </label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {formError && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {formError}
+            </div>
+          )}
 
-            {!showCustomRegion && (
-              <div className="space-y-3">
-                {regions.map((region) => (
-                  <label
-                    key={region}
-                    className="flex items-center gap-3 cursor-pointer"
-                  >
-                    <input
-                      type="radio"
-                      name="region"
-                      value={region}
-                      checked={formData.region === region}
-                      onChange={handleChange}
-                      className="w-4 h-4"
-                    />
-                    <span className="text-sm text-gray-700">{region}</span>
-                  </label>
-                ))}
-              </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="region">
+              Region
+              <span className="text-red-500 ml-0.5">*</span>
+            </Label>
+
+            {showCustomRegion ? (
+              <Input
+                id="region"
+                value={customRegionName}
+                onChange={handleCustomChange}
+                placeholder="Enter new region name"
+              />
+            ) : (
+              <Select value={region} onValueChange={handleRegionSelect}>
+                <SelectTrigger id="region">
+                  <SelectValue placeholder="Select a region" />
+                </SelectTrigger>
+                <SelectContent>
+                  {regions.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
 
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={toggleCustomRegion}
-              className="mt-3 w-full px-4 py-2 border border-blue-200 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors"
             >
               {showCustomRegion ? "Use Existing Region" : "New Region"}
-            </button>
+            </Button>
 
-            {showCustomRegion && (
-              <div className="mt-3">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  New Region Name
-                </label>
-                <input
-                  type="text"
-                  value={customRegionName}
-                  onChange={handleCustomRegionNameChange}
-                  placeholder="Enter new region name"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+            {errors.region && (
+              <p className="text-xs text-red-600">{errors.region}</p>
             )}
           </div>
 
-          {/* Form Actions */}
-          <div className="flex gap-4 pt-6 border-t border-gray-200">
-            <button
+          <DialogFooter>
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+              disabled={submitting}
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-60"
-            >
-              {loading ? "Saving..." : "Save Region"}
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isEdit ? "Save Changes" : "Add Region"}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

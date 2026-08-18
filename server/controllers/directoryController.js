@@ -1,5 +1,6 @@
 const FeedMill = require("../models/FeedMill");
 const SalesTeam = require("../models/SalesTeam");
+const XLSX = require("xlsx");
 
 // GET /directory/feed-mills?search=&district=
 const getFeedMills = async (req, res) => {
@@ -70,8 +71,287 @@ const getFilters = async (req, res) => {
   }
 };
 
+// POST /directory/feed-mills - create a new feed mill
+const createFeedMill = async (req, res) => {
+  try {
+    const doc = await FeedMill.create(req.body);
+    res.status(201).json(doc);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// PUT /directory/feed-mills/:id - update an existing feed mill
+const updateFeedMill = async (req, res) => {
+  try {
+    const doc = await FeedMill.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!doc) return res.status(404).json({ message: "Feed mill not found" });
+    res.json(doc);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// DELETE /directory/feed-mills/:id - remove a feed mill
+const deleteFeedMill = async (req, res) => {
+  try {
+    const doc = await FeedMill.findByIdAndDelete(req.params.id);
+    if (!doc) return res.status(404).json({ message: "Feed mill not found" });
+    res.json({ success: true, id: req.params.id });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// POST /directory/sales-team - create a new sales team member
+const createSalesTeam = async (req, res) => {
+  try {
+    const doc = await SalesTeam.create(req.body);
+    res.status(201).json(doc);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// PUT /directory/sales-team/:id - update an existing sales team member
+const updateSalesTeam = async (req, res) => {
+  try {
+    const doc = await SalesTeam.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!doc)
+      return res.status(404).json({ message: "Sales team member not found" });
+    res.json(doc);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// DELETE /directory/sales-team/:id - remove a sales team member
+const deleteSalesTeam = async (req, res) => {
+  try {
+    const doc = await SalesTeam.findByIdAndDelete(req.params.id);
+    if (!doc)
+      return res.status(404).json({ message: "Sales team member not found" });
+    res.json({ success: true, id: req.params.id });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Excel upload — Feed Mills only (Sales Team upload intentionally not
+// included). Same header-detection approach as the other uploads.
+//
+// Column mapping (per confirmed decisions):
+//   Feed Mill Name  -> feedMillName (required, upsert key)
+//   Address         -> dropped (duplicate of Mill Address); used as a
+//                       fallback for millAddress only if "Mill Address"
+//                       itself isn't found in the header row
+//   Contact         -> appended into millPhones (it's a phone number, and
+//                       millPhones is free-text/plural so it can hold more
+//                       than one number)
+//   Mill Address    -> millAddress
+//   Office Address  -> officeAddress
+//   Mill Phone(s)   -> millPhones
+//   Office Phone(s) -> officePhones
+//   Email           -> email
+//   Production      -> copied into BOTH productionCapacity and bagsPerMonth
+//
+// Not mapped from these headers: districtRegion, millOwner, srNo - these
+// stay empty on upload (districtRegion in particular means uploaded rows
+// won't show up under a specific district filter until that's populated).
+// ---------------------------------------------------------------------------
+
+const normalizeHeader = (h) =>
+  String(h || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+// Scans the first few rows for whichever one actually contains "Feed Mill"
+// and "Email" as column headers (tolerates a title row above the headers).
+const findHeaderRow = (matrix) => {
+  for (let i = 0; i < Math.min(matrix.length, 10); i++) {
+    const row = matrix[i] || [];
+    const hasFeedMill = row.some((cell) =>
+      normalizeHeader(cell).includes("feedmill"),
+    );
+    const hasEmail = row.some((cell) =>
+      normalizeHeader(cell).includes("email"),
+    );
+    if (hasFeedMill && hasEmail) {
+      return { headerRowIndex: i, headers: row };
+    }
+  }
+  return null;
+};
+
+// Matches a logical field to whichever column header contains all of the
+// given keywords, regardless of word order.
+const findColumnIndex = (headers, keywords, excludeKeywords = []) =>
+  headers.findIndex((h) => {
+    const norm = normalizeHeader(h);
+    return (
+      keywords.every((k) => norm.includes(k)) &&
+      !excludeKeywords.some((k) => norm.includes(k))
+    );
+  });
+
+const cell = (row, idx) =>
+  idx !== -1 && row[idx] !== null && row[idx] !== undefined
+    ? String(row[idx]).trim()
+    : "";
+
+// Joins two phone-ish strings without producing a stray leading/trailing
+// separator if one side is empty.
+const joinPhones = (a, b) => [a, b].filter(Boolean).join(", ");
+
+// POST /directory/feed-mills/upload - accepts an .xlsx/.xls file with Feed
+// Mill Name, Address, Contact, Mill Address, Office Address, Mill Phone(s),
+// Office Phone(s), Email, Production columns (order-independent, optional
+// title row tolerated). Upserts on Feed Mill Name so re-uploading updates
+// existing feed mills instead of duplicating them.
+const uploadFeedMills = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded." });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, {
+      type: "buffer",
+      cellDates: true,
+    });
+
+    let matrix = null;
+    let headerInfo = null;
+    for (const name of workbook.SheetNames) {
+      const candidate = XLSX.utils.sheet_to_json(workbook.Sheets[name], {
+        header: 1,
+        defval: null,
+      });
+      const found = findHeaderRow(candidate);
+      if (found) {
+        matrix = candidate;
+        headerInfo = found;
+        break;
+      }
+    }
+
+    if (!headerInfo) {
+      return res.status(400).json({
+        message:
+          'Could not find a header row with "Feed Mill Name" and "Email" columns in any sheet.',
+      });
+    }
+
+    const { headerRowIndex, headers } = headerInfo;
+    const col = {
+      feedMillName: findColumnIndex(headers, ["feedmill"]),
+      plainAddress: findColumnIndex(headers, ["address"], ["mill", "office"]),
+      contact: findColumnIndex(headers, ["contact"]),
+      millAddress: findColumnIndex(headers, ["mill", "address"]),
+      officeAddress: findColumnIndex(headers, ["office", "address"]),
+      millPhones: findColumnIndex(headers, ["mill", "phone"]),
+      officePhones: findColumnIndex(headers, ["office", "phone"]),
+      email: findColumnIndex(headers, ["email"]),
+      production: findColumnIndex(headers, ["production"]),
+    };
+
+    if (col.feedMillName === -1) {
+      return res.status(400).json({
+        message: "Could not find a Feed Mill Name column in the sheet headers.",
+      });
+    }
+
+    const dataRows = matrix
+      .slice(headerRowIndex + 1)
+      .filter((row) => row && row.some((c) => c !== null && c !== ""));
+
+    if (!dataRows.length) {
+      return res
+        .status(400)
+        .json({ message: "The uploaded sheet has no data rows." });
+    }
+
+    const errors = [];
+    const operations = [];
+
+    dataRows.forEach((row, idx) => {
+      const rowNum = headerRowIndex + idx + 2; // 1-indexed, after the header row
+
+      const feedMillName = cell(row, col.feedMillName);
+      if (!feedMillName) {
+        errors.push(`Row ${rowNum}: missing Feed Mill Name`);
+        return;
+      }
+
+      const millAddress =
+        col.millAddress !== -1
+          ? cell(row, col.millAddress)
+          : cell(row, col.plainAddress); // fallback if "Mill Address" itself is absent
+
+      const production = cell(row, col.production);
+
+      const doc = {
+        feedMillName,
+        millAddress,
+        officeAddress: cell(row, col.officeAddress),
+        millPhones: joinPhones(
+          cell(row, col.millPhones),
+          cell(row, col.contact),
+        ),
+        officePhones: cell(row, col.officePhones),
+        email: cell(row, col.email) || null,
+        productionCapacity: production || null,
+        bagsPerMonth: production || null,
+      };
+
+      // Upsert on Feed Mill Name so re-uploading the same mill updates its
+      // record instead of creating a duplicate.
+      operations.push({
+        updateOne: {
+          filter: { feedMillName: doc.feedMillName },
+          update: { $set: doc },
+          upsert: true,
+        },
+      });
+    });
+
+    if (!operations.length) {
+      return res.status(400).json({
+        message: "No valid rows found in the uploaded file.",
+        errors,
+      });
+    }
+
+    const result = await FeedMill.bulkWrite(operations, { ordered: false });
+
+    res.json({
+      message: "Upload complete.",
+      inserted: result.upsertedCount,
+      updated: result.modifiedCount,
+      totalRows: dataRows.length,
+      skipped: errors.length,
+      errors: errors.slice(0, 20),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getFeedMills,
   getSalesTeam,
   getFilters,
+  createFeedMill,
+  updateFeedMill,
+  deleteFeedMill,
+  createSalesTeam,
+  updateSalesTeam,
+  deleteSalesTeam,
+  uploadFeedMills,
 };

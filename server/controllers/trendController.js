@@ -1,5 +1,6 @@
 const Trend = require("../models/Trend");
 const XLSX = require("xlsx");
+const { getTrendRegions } = require("../utils/salespersonRegion");
 
 const MONTH_MAP = {
   jan: 1,
@@ -123,13 +124,22 @@ const getTrends = async (req, res) => {
   }
 };
 
-// GET /trends/filters - distinct values to populate filter dropdowns
+// GET /trends/filters - distinct values to populate filter dropdowns.
+// product / salesperson / year come straight from Trend data and region is
+// derived from the trends->salesman area mapping so every option maps to
+// records that actually exist in the sale data.
 const getFilters = async (req, res) => {
   try {
-    const [products, salespersons, periods] = await Promise.all([
+    const [
+      products,
+      salespersons,
+      periods,
+      regions,
+    ] = await Promise.all([
       Trend.distinct("product"),
       Trend.distinct("salesperson"),
       Trend.distinct("period"),
+      getTrendRegions(),
     ]);
 
     const years = [
@@ -140,6 +150,7 @@ const getFilters = async (req, res) => {
       products: products.sort(),
       salespersons: salespersons.sort(),
       years,
+      regions,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -274,6 +285,131 @@ const getBySalesperson = async (req, res) => {
     ]);
 
     res.json({ rows, series });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/**
+ * GET /trends/series
+ * Monthly / Quarterly / Yearly sale breakdown fetched directly from Trend data.
+ *
+ * Query params:
+ *   granularity - "month" | "quarter" | "year" (default "month")
+ *   year        - optional 4-digit year, e.g. 2024. When provided the full set
+ *                 of buckets for that year is returned (Jan-Dec or Q1-Q4),
+ *                 zero-filled so every period in the year is always visible.
+ *   product / salesperson - optional extra filters forwarded to the query.
+ *
+ * Returns [ { label, saleValue, targetValue, saleVolumeKg, count }, ... ]
+ * ordered chronologically (e.g. Jan 2024 ... Dec 2024).
+ */
+const getSalesSeries = async (req, res) => {
+  try {
+    const valid = ["month", "quarter", "year"];
+    const granularity = valid.includes(req.query.granularity)
+      ? req.query.granularity
+      : "month";
+    const year = req.query.year ? Number(req.query.year) : null;
+
+    const match = {};
+    if (year) match.year = year;
+    if (req.query.product && req.query.product !== "all") {
+      match.product = req.query.product;
+    }
+    if (req.query.salesperson && req.query.salesperson !== "all") {
+      match.salesperson = req.query.salesperson;
+    }
+
+    const id =
+      granularity === "month"
+        ? { year: "$year", segment: "$monthNumber" }
+        : granularity === "quarter"
+          ? { year: "$year", segment: { $ceil: { $divide: ["$monthNumber", 3] } } }
+          : { year: "$year" };
+
+    const rows = await Trend.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: id,
+          saleValue: { $sum: "$saleValueRs" },
+          saleVolumeKg: { $sum: "$saleVolumeKg" },
+          targetValue: { $sum: "$targetValueRs" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const map = new Map();
+    const presentYears = new Set();
+    rows.forEach((r) => {
+      const y = r._id.year;
+      if (y !== null && y !== undefined) presentYears.add(y);
+      const seg = r._id.segment;
+      const key =
+        granularity === "year"
+          ? String(y)
+          : `${y}-${granularity === "quarter" ? `Q${seg}` : seg}`;
+      map.set(key, r);
+    });
+
+    const makeBucket = (y, seg) => {
+      const key =
+        granularity === "year"
+          ? String(y)
+          : `${y}-${granularity === "quarter" ? `Q${seg}` : seg}`;
+      const hit = map.get(key);
+      // When a specific year is selected use plain Q1/Q2/Q3/Q4 labels;
+      // with "All Years" include the year to avoid identical labels.
+      const label =
+        granularity === "year"
+          ? String(y)
+          : granularity === "quarter"
+            ? year
+              ? `Q${seg}`
+              : `Q${seg} ${y}`
+            : `${MONTH_LABELS[seg - 1]} ${y}`;
+      return {
+        label,
+        value: hit ? hit.saleValue : 0,
+        target: hit ? hit.targetValue : 0,
+        volume: hit ? hit.saleVolumeKg : 0,
+        count: hit ? hit.count : 0,
+      };
+    };
+
+    const result = [];
+    const yearsToUse = year
+      ? [year]
+      : Array.from(presentYears).sort((a, b) => a - b);
+
+    yearsToUse.forEach((y) => {
+      if (granularity === "month") {
+        for (let m = 1; m <= 12; m += 1) result.push(makeBucket(y, m));
+      } else if (granularity === "quarter") {
+        for (let q = 1; q <= 4; q += 1) result.push(makeBucket(y, q));
+      } else {
+        result.push(makeBucket(y, null));
+      }
+    });
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -485,5 +621,6 @@ module.exports = {
   getFilters,
   getByProduct,
   getBySalesperson,
+  getSalesSeries,
   uploadTrends,
 };

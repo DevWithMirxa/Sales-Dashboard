@@ -1,61 +1,68 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Calendar, Filter } from "lucide-react";
+import { Filter } from "lucide-react";
 import api from "@/lib/api";
 
-export default function FilterBar({ onFilterChange }) {
-  const [dateRange, setDateRange] = useState("M");
+export default function FilterBar({ onFilterChange, onBreakdownChange, breakdown }) {
   const [region, setRegion] = useState("all");
   const [product, setProduct] = useState("all");
   const [salesperson, setSalesperson] = useState("all");
 
-  const [regions, setRegions] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [salesmen, setSalesmen] = useState([]);
+  // Breakdown/Duration are controlled by the Dashboard (via the `breakdown`
+  // prop) so their selections survive re-renders and page refreshes.
+  const [years, setYears] = useState([]);
+
+  // Region / Product / Salesperson are intentionally limited to "All" (these
+  // scopes are shown as charts on the dashboard, not as single-select filters).
 
   useEffect(() => {
     const fetchFilterData = async () => {
       try {
-        const [regionsRes, productsRes, salesmenRes] = await Promise.all([
-          api.get("/regions"),
-          api.get("/products"),
-          api.get("/salesmen"),
-        ]);
-        setRegions(regionsRes.data || []);
-        setProducts(productsRes.data || []);
-        setSalesmen(salesmenRes.data || []);
+        const trendsRes = await api.get("/trends/filters");
+        const data = trendsRes.data || {};
+        setYears((data.years || []).slice().sort());
       } catch (error) {
         console.error("Error fetching filter data:", error);
       }
     };
+
     fetchFilterData();
   }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     const newState = {
-      dateRange,
       region,
       product,
       salesperson,
     };
     newState[name] = value;
-    if (name === "dateRange") setDateRange(value);
-    else if (name === "region") setRegion(value);
+    if (name === "region") setRegion(value);
     else if (name === "product") setProduct(value);
     else if (name === "salesperson") setSalesperson(value);
 
     onFilterChange(newState);
   };
 
+  const handleBreakdownChange = (e) => {
+    const { name, value } = e.target;
+    // Map the "breakdown" control to the "granularity" field the dashboard
+    // expects. The selects are controlled by the `breakdown` prop, so we read
+    // the other value from it (this is why changing one never drops the other).
+    const current = breakdown || { granularity: "month", year: "all" };
+    if (name === "breakdown") {
+      onBreakdownChange({ granularity: value, year: current.year });
+    } else if (name === "breakdownYear") {
+      onBreakdownChange({ granularity: current.granularity, year: value });
+    }
+  };
+
   const handleClear = () => {
-    setDateRange("M");
     setRegion("all");
     setProduct("all");
     setSalesperson("all");
     onFilterChange({
-      dateRange: "M",
       region: "all",
       product: "all",
       salesperson: "all",
@@ -64,26 +71,6 @@ export default function FilterBar({ onFilterChange }) {
 
   return (
     <div className="flex flex-col sm:flex-row gap-4 flex-wrap items-end">
-      {/* Date Range Filter */}
-      <div className="flex-1 min-w-40">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          <Calendar className="w-4 h-4 inline mr-2" />
-          Period
-        </label>
-        <select
-          name="dateRange"
-          value={dateRange}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="D">Daily (D)</option>
-          <option value="W">Weekly (W)</option>
-          <option value="M">Monthly (M)</option>
-          <option value="Q">Quarterly (Q)</option>
-          <option value="Y">Yearly (Y)</option>
-        </select>
-      </div>
-
       {/* Region Filter */}
       <div className="flex-1 min-w-40">
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -96,11 +83,6 @@ export default function FilterBar({ onFilterChange }) {
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All Regions</option>
-          {regions.map((r) => (
-            <option key={r._id} value={r.region}>
-              {r.region}
-            </option>
-          ))}
         </select>
       </div>
 
@@ -116,11 +98,6 @@ export default function FilterBar({ onFilterChange }) {
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All Products</option>
-          {products.map((p) => (
-            <option key={p._id} value={p.name}>
-              {p.name}
-            </option>
-          ))}
         </select>
       </div>
 
@@ -136,9 +113,42 @@ export default function FilterBar({ onFilterChange }) {
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All Salespeople</option>
-          {salesmen.map((s) => (
-            <option key={s._id} value={s.name}>
-              {s.name}
+        </select>
+      </div>
+
+      {/* Breakdown Filter (Monthly / Quarterly / Yearly) */}
+      <div className="flex-1 min-w-40">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          <Filter className="w-4 h-4 inline mr-2" />
+          Breakdown
+        </label>
+        <select
+          name="breakdown"
+          value={breakdown?.granularity || "month"}
+          onChange={handleBreakdownChange}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="month">Monthly</option>
+          <option value="quarter">Quarterly</option>
+          <option value="year">Yearly</option>
+        </select>
+      </div>
+
+      {/* Duration Filter (All / 2024 / 2025 / 2026) */}
+      <div className="flex-1 min-w-40">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Duration
+        </label>
+        <select
+          name="breakdownYear"
+          value={breakdown?.year || "all"}
+          onChange={handleBreakdownChange}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All</option>
+          {years.map((y) => (
+            <option key={y} value={String(y)}>
+              {y}
             </option>
           ))}
         </select>

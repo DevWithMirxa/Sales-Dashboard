@@ -33,13 +33,14 @@ app.use(cookieParser());
 // Defines Routes (Will add them slowly)
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
-app.use("/api/customers", require("./routes/customerRoutes"));
 app.use("/api/salesmen", require("./routes/salesmanRoutes"));
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/regions", require("./routes/regionRoutes"));
 app.use("/api/targets", require("./routes/targetRoutes"));
 app.use("/api/trends", require("./routes/trends"));
 app.use("/api/directory", require("./routes/directory"));
+app.use("/api/sales", require("./routes/salesRoutes"));
+app.use("/api/users", require("./routes/userRoutes"));
 
 app.get("/", (req, res) => {
   res.send("Sales Dashboard API is running");

@@ -1,8 +1,26 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import React, { useState } from "react";
+import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const productOptions = [
   "Anavite Layer Premix",
@@ -61,51 +79,51 @@ const productOptions = [
 ];
 
 export default function ProductForm({ onClose, initialData, onSuccess }) {
+  const isEdit = Boolean(initialData?._id);
+
+  // Pre-fill from an existing product, detecting whether the name is one of
+  // the known options or a custom name (older records).
+  const buildInitial = () => {
+    const name = initialData?.name || "";
+    const known = productOptions.includes(name);
+    return {
+      name,
+      pricePerKg: initialData?.pricePerKg ?? "",
+      packingKg: initialData?.packingKg ?? "",
+      customProductName: known ? "" : name,
+      showCustomProduct: !known && !!name,
+    };
+  };
+
+  const [initial] = useState(buildInitial);
   const [formData, setFormData] = useState({
-    name: "",
-    pricePerKg: "",
-    packingKg: "",
+    name: initial.name,
+    pricePerKg: initial.pricePerKg,
+    packingKg: initial.packingKg,
   });
-  const [customProductName, setCustomProductName] = useState("");
-  const [showCustomProduct, setShowCustomProduct] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (initialData) {
-      const selectedName = initialData.name || "";
-      const isKnownProduct = productOptions.includes(selectedName);
-
-      setFormData({
-        name: selectedName,
-        pricePerKg: initialData.pricePerKg || "",
-        packingKg: initialData.packingKg || "",
-      });
-      setCustomProductName(isKnownProduct ? "" : selectedName);
-      setShowCustomProduct(!isKnownProduct && !!selectedName);
-    } else {
-      setFormData({
-        name: "",
-        pricePerKg: "",
-        packingKg: "",
-      });
-      setCustomProductName("");
-      setShowCustomProduct(false);
-    }
-  }, [initialData]);
+  const [customProductName, setCustomProductName] = useState(
+    initial.customProductName,
+  );
+  const [showCustomProduct, setShowCustomProduct] = useState(
+    initial.showCustomProduct,
+  );
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
-  const handleProductNameChange = (e) => {
-    const { value } = e.target;
+  const handleProductSelect = (value) => {
     setShowCustomProduct(false);
     setCustomProductName("");
     setFormData((prev) => ({ ...prev, name: value }));
   };
 
-  const handleCustomProductNameChange = (e) => {
+  const handleCustomNameChange = (e) => {
     const value = e.target.value;
     setCustomProductName(value);
     setFormData((prev) => ({ ...prev, name: value }));
@@ -113,159 +131,184 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
 
   const toggleCustomProduct = () => {
     setShowCustomProduct((prev) => {
-      const nextValue = !prev;
-
-      if (!nextValue) {
+      const next = !prev;
+      if (!next) {
         setCustomProductName("");
-        setFormData((current) => ({ ...current, name: "" }));
+        setFormData((cur) => ({ ...cur, name: "" }));
       } else {
-        const savedName =
+        const saved =
           formData.name && !productOptions.includes(formData.name)
             ? formData.name
             : "";
-        setCustomProductName(savedName);
-        setFormData((current) => ({ ...current, name: savedName }));
+        setCustomProductName(saved);
+        setFormData((cur) => ({ ...cur, name: saved }));
       }
-
-      return nextValue;
+      return next;
     });
+  };
+
+  const validate = () => {
+    const nextErrors = {};
+    if (!String(formData.name || "").trim()) {
+      nextErrors.name = "Product name is required";
+    }
+    if (formData.pricePerKg === "" || formData.pricePerKg === null) {
+      nextErrors.pricePerKg = "Price is required";
+    }
+    if (formData.packingKg === "" || formData.packingKg === null) {
+      nextErrors.packingKg = "Packing size is required";
+    }
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const trimmedName = formData.name.trim();
+    setFormError("");
+    if (!validate()) return;
 
-    if (!trimmedName) {
-      alert("Please select a product or enter a new product name");
-      return;
-    }
-
-    setLoading(true);
+    setSubmitting(true);
     try {
-      const payload = { ...formData, name: trimmedName };
-
-      if (initialData && initialData._id) {
+      const payload = {
+        name: formData.name.trim(),
+        pricePerKg: Number(formData.pricePerKg),
+        packingKg: Number(formData.packingKg),
+      };
+      if (isEdit) {
         await api.put(`/products/${initialData._id}`, payload);
       } else {
         await api.post("/products", payload);
       }
-      if (onSuccess) onSuccess();
+      onSuccess();
       onClose();
-    } catch (error) {
-      console.error("Error saving product:", error);
-      alert("Failed to save product");
+    } catch (err) {
+      console.error("Save failed:", err);
+      setFormError(
+        err?.response?.data?.message ||
+          "Unable to save this product. Please check the fields and try again.",
+      );
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">Add Product</h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Edit" : "Add New"} Product</DialogTitle>
+          <DialogDescription>
+            {isEdit
+              ? "Update the product details below and save your changes."
+              : "Fill in the details below to add a new product."}
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Form Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Product Name
-            </label>
-            <select
-              name="name"
-              value={showCustomProduct ? "" : formData.name}
-              onChange={handleProductNameChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a product</option>
-              {productOptions.map((productName) => (
-                <option key={productName} value={productName}>
-                  {productName}
-                </option>
-              ))}
-            </select>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {formError && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {formError}
+            </div>
+          )}
 
-            <button
-              type="button"
-              onClick={toggleCustomProduct}
-              className="mt-3 w-full px-4 py-2 border border-blue-200 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors"
-            >
-              {showCustomProduct ? "Use Existing Product" : "New Product"}
-            </button>
-
-            {showCustomProduct && (
-              <div className="mt-3">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  New Product Name
-                </label>
-                <input
-                  type="text"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="name">
+                Product Name
+                <span className="text-red-500 ml-0.5">*</span>
+              </Label>
+              {showCustomProduct ? (
+                <Input
+                  id="name"
                   value={customProductName}
-                  onChange={handleCustomProductNameChange}
+                  onChange={handleCustomNameChange}
                   placeholder="Enter new product name"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-            )}
+              ) : (
+                <Select
+                  value={formData.name || ""}
+                  onValueChange={handleProductSelect}
+                >
+                  <SelectTrigger id="name">
+                    <SelectValue placeholder="Select a product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {productOptions.map((productName) => (
+                      <SelectItem key={productName} value={productName}>
+                        {productName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={toggleCustomProduct}
+              >
+                {showCustomProduct ? "Use Existing Product" : "New Product"}
+              </Button>
+              {errors.name && (
+                <p className="text-xs text-red-600">{errors.name}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="pricePerKg">
+                Price (Rs/Kg)
+                <span className="text-red-500 ml-0.5">*</span>
+              </Label>
+              <Input
+                id="pricePerKg"
+                type="number"
+                step="0.01"
+                name="pricePerKg"
+                value={formData.pricePerKg}
+                onChange={handleChange}
+                placeholder="Enter price per kg"
+              />
+              {errors.pricePerKg && (
+                <p className="text-xs text-red-600">{errors.pricePerKg}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="packingKg">
+                Packing (Kg)
+                <span className="text-red-500 ml-0.5">*</span>
+              </Label>
+              <Input
+                id="packingKg"
+                type="number"
+                step="0.1"
+                name="packingKg"
+                value={formData.packingKg}
+                onChange={handleChange}
+                placeholder="Enter packing size in kg"
+              />
+              {errors.packingKg && (
+                <p className="text-xs text-red-600">{errors.packingKg}</p>
+              )}
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Price (Rs/Kg)
-            </label>
-            <input
-              type="number"
-              name="pricePerKg"
-              value={formData.pricePerKg}
-              onChange={handleChange}
-              placeholder="Enter price per kg"
-              step="0.01"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Packing (Kg)
-            </label>
-            <input
-              type="number"
-              name="packingKg"
-              value={formData.packingKg}
-              onChange={handleChange}
-              placeholder="Enter packing size in kg"
-              step="0.1"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* Form Actions */}
-          <div className="flex gap-4 pt-6 border-t border-gray-200">
-            <button
+          <DialogFooter>
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+              disabled={submitting}
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-60"
-            >
-              {loading ? "Saving..." : "Save Product"}
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isEdit ? "Save Changes" : "Add Product"}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

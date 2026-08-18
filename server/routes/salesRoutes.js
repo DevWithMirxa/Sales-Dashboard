@@ -2,13 +2,13 @@ const express = require("express");
 const multer = require("multer");
 const router = express.Router();
 const {
-  getTrends,
-  getFilters,
-  getByProduct,
-  getBySalesperson,
-  getSalesSeries,
-  uploadTrends,
-} = require("../controllers/trendController");
+  createSale,
+  getSales,
+  updateSale,
+  deleteSale,
+  getSaleFormOptions,
+  uploadSales,
+} = require("../controllers/salesController");
 
 // Keep the file in memory - it's parsed with xlsx and never needs to touch disk.
 const upload = multer({
@@ -21,13 +21,10 @@ const upload = multer({
   },
 });
 
-router.get("/", getTrends);
-router.get("/filters", getFilters);
-router.get("/by-product", getByProduct);
-router.get("/by-salesperson", getBySalesperson);
-router.get("/series", getSalesSeries);
+// Must be declared before "/:id" or Express will try to treat
+// "form-options" / "upload" as an :id value.
+router.get("/form-options", getSaleFormOptions);
 
-// POST /trends/upload - excel file field name must be "file"
 router.post(
   "/upload",
   (req, res, next) => {
@@ -36,7 +33,11 @@ router.post(
       next();
     });
   },
-  uploadTrends,
+  uploadSales,
 );
+
+router.route("/").get(getSales).post(createSale);
+
+router.route("/:id").put(updateSale).delete(deleteSale);
 
 module.exports = router;

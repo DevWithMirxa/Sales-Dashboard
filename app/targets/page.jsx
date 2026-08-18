@@ -1,12 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import TargetForm from "@/components/forms/TargetForm";
 import TanStackDataTable from "@/components/TanStackDataTable";
-import { Plus, Trash2, Edit2, Package } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  Package,
+  Download,
+  Upload,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  X,
+} from "lucide-react";
 import api from "@/lib/api";
+import { exportToCSV } from "@/lib/csvExport";
 
 function Targets() {
   const [targets, setTargets] = useState([]);
@@ -14,6 +26,9 @@ function Targets() {
   const [expandedTarget, setExpandedTarget] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingTarget, setEditingTarget] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState(null); // { type: 'success' | 'error', text }
+  const fileInputRef = useRef(null);
 
   const fetchTargets = async () => {
     try {
@@ -93,6 +108,50 @@ function Targets() {
     setEditingTarget(null);
   };
 
+  const handleUploadClick = () => fileInputRef.current?.click();
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset so selecting the same file again still fires onChange
+    if (!file) return;
+
+    setUploading(true);
+    setUploadMessage(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await api.post("/targets/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const {
+        inserted = 0,
+        updated = 0,
+        skipped = 0,
+        totalRows = 0,
+      } = res.data || {};
+      setUploadMessage({
+        type: "success",
+        text: `Imported ${inserted + updated} target${
+          inserted + updated === 1 ? "" : "s"
+        } from ${totalRows} rows (${inserted} new, ${updated} updated${
+          skipped ? `, ${skipped} skipped` : ""
+        }).`,
+      });
+      fetchTargets();
+    } catch (err) {
+      setUploadMessage({
+        type: "error",
+        text:
+          err.response?.data?.message ||
+          "Upload failed. Please check the file format and try again.",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const calculateTotalRevenue = (products) =>
     products.reduce((sum, p) => sum + (p.targetRevenue || 0), 0);
   const calculateTotalQuantity = (products) =>
@@ -140,8 +199,8 @@ function Targets() {
     },
     {
       accessorKey: "targetRevenue",
-      header: "Target Revenue",
-      cell: ({ getValue }) => `Rs. ${(getValue() || 0).toLocaleString()}`,
+      header: "Target Revenue (Rs)",
+      cell: ({ getValue }) => `${(getValue() || 0).toLocaleString()}`,
       meta: { cellClassName: "font-semibold text-gray-900" },
     },
     {
@@ -165,19 +224,99 @@ function Targets() {
     },
   ];
 
+  const handleExport = () => {
+    exportToCSV(
+      targets,
+      [
+        { label: "Salesman", value: (t) => t.assignedTo?.name || "Unassigned" },
+        { label: "Target Name", key: "targetName" },
+        { label: "Period", key: "period" },
+        {
+          label: "Region",
+          value: (t) => t.region || t.assignedTo?.area || "-",
+        },
+        { label: "Status", value: (t) => getStatusConfig(t.status).label },
+        { label: "Products", value: (t) => t.products?.length || 0 },
+        {
+          label: "Total Quantity",
+          value: (t) =>
+            t.totalQuantity || calculateTotalQuantity(t.products || []),
+        },
+        {
+          label: "Total Revenue (Rs)",
+          value: (t) =>
+            t.totalRevenue || calculateTotalRevenue(t.products || []),
+        },
+      ],
+      "sales-targets",
+    );
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-4">
           <h1 className="text-3xl font-bold text-gray-900">Sales Targets</h1>
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Assign Target
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Download className="w-5 h-5" />
+              Export
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleFileSelected}
+            />
+            <button
+              onClick={handleUploadClick}
+              disabled={uploading}
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+            >
+              {uploading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Upload className="w-5 h-5" />
+              )}
+              {uploading ? "Uploading..." : "Upload Excel File"}
+            </button>
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Assign Target
+            </button>
+          </div>
         </div>
+
+        {/* Upload result banner */}
+        {uploadMessage && (
+          <div
+            className={`flex items-start gap-3 rounded-lg border p-4 text-sm ${
+              uploadMessage.type === "success"
+                ? "bg-green-50 border-green-200 text-green-800"
+                : "bg-red-50 border-red-200 text-red-800"
+            }`}
+          >
+            {uploadMessage.type === "success" ? (
+              <CheckCircle2 className="w-5 h-5 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 shrink-0" />
+            )}
+            <span className="flex-1">{uploadMessage.text}</span>
+            <button
+              onClick={() => setUploadMessage(null)}
+              className="text-current opacity-70 hover:opacity-100"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Loading state */}
         {loading && (

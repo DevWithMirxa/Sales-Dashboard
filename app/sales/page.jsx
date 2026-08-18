@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
-import SalesPersonForm from "@/components/forms/SalesPersonForm";
+import SaleForm from "@/components/forms/SaleForm";
 import TanStackDataTable from "@/components/TanStackDataTable";
 import {
   Plus,
@@ -18,71 +18,77 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
-import { Badge } from "@/components/ui/badge";
 
-function Salesmen() {
-  const [salesmen, setSalesmen] = useState([]);
+function Sales() {
+  const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingSalesman, setEditingSalesman] = useState(null);
+  const [editingSale, setEditingSale] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState(null); // { type: 'success' | 'error', text }
   const fileInputRef = useRef(null);
 
-  const fetchSalesmen = async () => {
+  const fetchSales = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/salesmen");
-      setSalesmen(res.data);
+      const res = await api.get("/sales");
+      setSales(res.data);
     } catch (error) {
-      console.error("Error fetching salesmen:", error);
+      console.error("Error fetching sales:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSalesmen();
+    fetchSales();
   }, []);
 
   const handleDelete = async (id) => {
-    if (confirm("Are you sure you want to delete this salesman?")) {
+    if (confirm("Are you sure you want to delete this sale?")) {
       try {
-        await api.delete(`/salesmen/${id}`);
-        fetchSalesmen();
+        await api.delete(`/sales/${id}`);
+        fetchSales();
       } catch (error) {
-        console.error("Error deleting salesman:", error);
-        alert("Failed to delete salesman");
+        console.error("Error deleting sale:", error);
+        alert("Failed to delete sale");
       }
     }
   };
 
-  const handleEdit = (salesman) => {
-    setEditingSalesman(salesman);
+  const handleEdit = (sale) => {
+    setEditingSale(sale);
     setShowForm(true);
   };
 
   const handleExport = () => {
     exportToCSV(
-      salesmen,
+      sales,
       [
-        { label: "Name", key: "name" },
-        { label: "Designation", key: "designation" },
-        { label: "Region", key: "area" },
-        { label: "Mobile", key: "contactNumber" },
-        { label: "Email", key: "email" },
         {
-          label: "Status",
-          value: (row) => (row.status === "inactive" ? "Inactive" : "Active"),
+          label: "Date",
+          value: (row) =>
+            row.saleDate ? new Date(row.saleDate).toLocaleDateString() : "-",
         },
+        { label: "Salesman", key: "salesman" },
+        { label: "Product", key: "product" },
+        { label: "Customer", key: "customer" },
+        { label: "Region", key: "region" },
+        {
+          label: "Quantity",
+          value: (row) => `${row.quantity || 0} ${row.unit || ""}`.trim(),
+        },
+        { label: "Rate", key: "rate" },
+        { label: "Total Amount", key: "totalAmount" },
+        { label: "Notes", key: "notes" },
       ],
-      "salesmen",
+      "sales",
     );
   };
 
   const handleCloseForm = () => {
     setShowForm(false);
-    setEditingSalesman(null);
+    setEditingSale(null);
   };
 
   const handleUploadClick = () => fileInputRef.current?.click();
@@ -99,22 +105,17 @@ function Salesmen() {
     formData.append("file", file);
 
     try {
-      const res = await api.post("/salesmen/upload", formData, {
+      const res = await api.post("/sales/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      const {
-        inserted = 0,
-        updated = 0,
-        skipped = 0,
-        totalRows = 0,
-      } = res.data || {};
+      const { inserted = 0, skipped = 0, totalRows = 0 } = res.data || {};
       setUploadMessage({
         type: "success",
-        text: `Imported ${inserted + updated} of ${totalRows} rows (${inserted} new, ${updated} updated${
-          skipped ? `, ${skipped} skipped` : ""
-        }).`,
+        text: `Imported ${inserted} of ${totalRows} rows${
+          skipped ? ` (${skipped} skipped)` : ""
+        }.`,
       });
-      fetchSalesmen();
+      fetchSales();
     } catch (err) {
       setUploadMessage({
         type: "error",
@@ -130,58 +131,66 @@ function Salesmen() {
   const columns = useMemo(
     () => [
       {
-        accessorKey: "name",
-        header: "Name",
-        cell: ({ getValue }) => getValue(),
-        meta: {
-          headerClassName: "w-[22%]",
-          cellClassName: "w-[22%] text-gray-900",
-        },
-      },
-      {
-        accessorKey: "designation",
-        header: "Designation",
-        meta: {
-          headerClassName: "w-[18%]",
-          cellClassName: "w-[18%]",
-        },
-      },
-      {
-        accessorKey: "area",
-        header: "Region",
-        meta: {
-          headerClassName: "w-[16%]",
-          cellClassName: "w-[16%]",
-        },
-      },
-      {
-        accessorKey: "contactNumber",
-        header: "Mobile",
-        meta: {
-          headerClassName: "w-[16%]",
-          cellClassName: "w-[16%]",
-        },
-      },
-      {
-        accessorKey: "status",
-        header: "Status",
+        accessorKey: "saleDate",
+        header: "Date",
         cell: ({ getValue }) => {
-          const isActive = (getValue() || "active") === "active";
-          return (
-            <Badge
-              className={
-                isActive
-                  ? "bg-green-100 text-green-800 hover:bg-green-100"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-100"
-              }
-            >
-              {isActive ? "Active" : "Inactive"}
-            </Badge>
-          );
+          const v = getValue();
+          return v ? new Date(v).toLocaleDateString() : "-";
         },
+        meta: {
+          headerClassName: "w-[9%]",
+          cellClassName: "w-[9%]",
+        },
+      },
+      {
+        accessorKey: "salesman",
+        header: "Salesman",
+        meta: {
+          headerClassName: "w-[14%]",
+          cellClassName: "w-[14%] text-gray-900 font-medium",
+        },
+      },
+      {
+        accessorKey: "product",
+        header: "Product",
         meta: {
           headerClassName: "w-[14%]",
           cellClassName: "w-[14%]",
+        },
+      },
+      {
+        accessorKey: "customer",
+        header: "Customer",
+        meta: {
+          headerClassName: "w-[15%]",
+          cellClassName: "w-[15%]",
+        },
+      },
+      {
+        accessorKey: "region",
+        header: "Region",
+        meta: {
+          headerClassName: "w-[13%]",
+          cellClassName: "w-[13%]",
+        },
+      },
+      {
+        accessorKey: "quantity",
+        header: "Quantity",
+        cell: ({ row }) =>
+          `${row.original.quantity || 0} ${row.original.unit || ""}`,
+        meta: {
+          headerClassName: "w-[10%]",
+          cellClassName: "w-[10%]",
+        },
+      },
+      {
+        accessorKey: "totalAmount",
+        header: "Total Amount (Rs)",
+        cell: ({ getValue }) => `${(getValue() || 0).toLocaleString()}`,
+        meta: {
+          headerClassName: "w-[15%]",
+          cellClassName: "w-[15%] font-semibold text-gray-900",
         },
       },
       {
@@ -189,8 +198,8 @@ function Salesmen() {
         header: "Actions",
         enableSorting: false,
         meta: {
-          headerClassName: "w-[14%]",
-          cellClassName: "w-[14%]",
+          headerClassName: "w-[10%]",
+          cellClassName: "w-[10%]",
         },
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-1.5">
@@ -219,7 +228,7 @@ function Salesmen() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-wrap justify-between items-center gap-4">
-          <h1 className="text-3xl font-bold text-gray-900">Sales Team</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Sales</h1>
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={handleExport}
@@ -252,7 +261,7 @@ function Salesmen() {
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-5 h-5" />
-              Add Salesman
+              Add Sales
             </button>
           </div>
         </div>
@@ -283,18 +292,18 @@ function Salesmen() {
 
         <TanStackDataTable
           columns={columns}
-          data={salesmen}
+          data={sales}
           loading={loading}
-          emptyMessage="No salesmen found."
+          emptyMessage="No sales recorded yet."
           getRowId={(row) => row._id}
         />
 
         {/* Form Modal */}
         {showForm && (
-          <SalesPersonForm
+          <SaleForm
             onClose={handleCloseForm}
-            initialData={editingSalesman}
-            onSuccess={fetchSalesmen}
+            initialData={editingSale}
+            onSuccess={fetchSales}
           />
         )}
       </div>
@@ -302,10 +311,10 @@ function Salesmen() {
   );
 }
 
-export default function SalesmenPage() {
+export default function SalesPage() {
   return (
     <ProtectedRoute>
-      <Salesmen />
+      <Sales />
     </ProtectedRoute>
   );
 }

@@ -49,6 +49,12 @@ const loginUser = async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
+      // Stamp last-active time for the User Management screen.
+      // Safe with the pre-save hook fix in User.js: since `password`
+      // isn't modified here, the hook now correctly skips re-hashing.
+      user.lastActiveAt = new Date();
+      await user.save();
+
       const token = generateToken(user._id);
 
       res.cookie("token", token, {

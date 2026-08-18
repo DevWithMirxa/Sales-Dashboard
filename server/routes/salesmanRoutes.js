@@ -1,13 +1,39 @@
-const express = require('express');
+const express = require("express");
+const multer = require("multer");
 const router = express.Router();
-const { createSalesman, getSalesmen, updateSalesman, deleteSalesman } = require('../controllers/salesmanController');
+const {
+  createSalesman,
+  getSalesmen,
+  updateSalesman,
+  deleteSalesman,
+  uploadSalesmen,
+} = require("../controllers/salesmanController");
 
-router.route('/')
-    .get(getSalesmen)
-    .post(createSalesman);
+// Keep the file in memory - it's parsed with xlsx and never needs to touch disk.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const okExt = /\.(xlsx|xls)$/i.test(file.originalname);
+    if (!okExt) return cb(new Error("Only .xlsx or .xls files are allowed"));
+    cb(null, true);
+  },
+});
 
-router.route('/:id')
-    .put(updateSalesman)
-    .delete(deleteSalesman);
+router.route("/").get(getSalesmen).post(createSalesman);
+
+router.route("/:id").put(updateSalesman).delete(deleteSalesman);
+
+// POST /salesmen/upload - excel file field name must be "file"
+router.post(
+  "/upload",
+  (req, res, next) => {
+    upload.single("file")(req, res, (err) => {
+      if (err) return res.status(400).json({ message: err.message });
+      next();
+    });
+  },
+  uploadSalesmen,
+);
 
 module.exports = router;

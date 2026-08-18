@@ -1,9 +1,17 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
+import { exportToCSV } from "@/lib/csvExport";
+import DirectoryForm from "@/components/forms/DirectoryForm";
 import axios from "axios";
 import {
   useReactTable,
@@ -19,14 +27,23 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
+  Download,
   ChevronDown,
   Search,
   Factory,
-  Users,
   MapPin,
   Phone,
   Mail,
   Package,
+  Plus,
+  Edit,
+  Trash2,
+  RefreshCw,
+  Upload,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  X,
 } from "lucide-react";
 
 import {
@@ -36,7 +53,6 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -63,23 +79,6 @@ const hasValue = (v) =>
 
 const columnHelper = createColumnHelper();
 
-const salesTeamColumns = [
-  columnHelper.accessor("salesperson", {
-    header: "Salesperson",
-    cell: (info) => (
-      <span className="font-medium text-foreground">{info.getValue()}</span>
-    ),
-  }),
-  columnHelper.accessor("designation", {
-    header: "Designation",
-    cell: (info) => showValue(info.getValue()),
-  }),
-  columnHelper.accessor("region", {
-    header: "Region",
-    cell: (info) => showValue(info.getValue()),
-  }),
-];
-
 function DetailItem({ icon: Icon, label, value }) {
   return (
     <div className="min-w-0 rounded-md border bg-background p-3">
@@ -95,25 +94,44 @@ function DetailItem({ icon: Icon, label, value }) {
 }
 
 function BusinessDirectoryContent() {
-  const [view, setView] = useState("feed-mills"); // 'feed-mills' | 'sales-team'
   const [districts, setDistricts] = useState([]);
-  const [designations, setDesignations] = useState([]);
   const [district, setDistrict] = useState("all");
-  const [designation, setDesignation] = useState("all");
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sorting, setSorting] = useState([]);
+  const [sorting, setSorting] = useState([{ id: "feedMillName", desc: false }]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [expandedId, setExpandedId] = useState(null);
   const [error, setError] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState(null); // { type: 'success' | 'error', text }
+  const fileInputRef = useRef(null);
+
+  // Delete a record via the API and optimistically remove it from the table.
+  const handleDelete = useCallback(async (id) => {
+    if (!confirm("Are you sure you want to delete this record?")) return;
+    setDeleting({ id });
+    try {
+      await api.delete("/directory/feed-mills/" + id);
+      setRows((prev) => prev.filter((r) => r._id !== id && r.id !== id));
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert(
+        err?.response?.data?.message || "Unable to delete. Please try again.",
+      );
+    } finally {
+      setDeleting(null);
+    }
+  }, []);
 
   const fetchFilters = (signal) => {
     api
       .get("/directory/filters", { signal })
       .then((res) => {
         setDistricts(res.data.districts || []);
-        setDesignations(res.data.designations || []);
       })
       .catch((err) => {
         if (
@@ -138,17 +156,6 @@ function BusinessDirectoryContent() {
     return () => controller.abort();
   }, []);
 
-  // Reset pagination and default sort whenever the view changes.
-  useEffect(() => {
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    setExpandedId(null);
-    setSorting(
-      view === "feed-mills"
-        ? [{ id: "feedMillName", desc: false }]
-        : [{ id: "salesperson", desc: false }],
-    );
-  }, [view]);
-
   // Debounce the search box so we don't fire a request on every keystroke.
   const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
@@ -160,14 +167,10 @@ function BusinessDirectoryContent() {
     setLoading(true);
     setError("");
 
-    const endpoint =
-      view === "feed-mills" ? "/directory/feed-mills" : "/directory/sales-team";
-    const params = { search: debouncedSearch || undefined };
-    if (view === "feed-mills") params.district = district;
-    if (view === "sales-team") params.designation = designation;
+    const params = { search: debouncedSearch || undefined, district };
 
     api
-      .get(endpoint, { params, signal })
+      .get("/directory/feed-mills", { params, signal })
       .then((res) => {
         setRows(res.data.rows || []);
         setLoading(false);
@@ -192,7 +195,52 @@ function BusinessDirectoryContent() {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
     fetchDirectoryData(controller.signal);
     return () => controller.abort();
-  }, [view, debouncedSearch, district, designation]);
+  }, [debouncedSearch, district]);
+
+  const handleUploadClick = () => fileInputRef.current?.click();
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset so selecting the same file again still fires onChange
+    if (!file) return;
+
+    setUploading(true);
+    setUploadMessage(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await api.post("/directory/feed-mills/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const {
+        inserted = 0,
+        updated = 0,
+        skipped = 0,
+        totalRows = 0,
+      } = res.data || {};
+      setUploadMessage({
+        type: "success",
+        text: `Imported ${inserted + updated} of ${totalRows} rows (${inserted} new, ${updated} updated${
+          skipped ? `, ${skipped} skipped` : ""
+        }).`,
+      });
+      // New districts may have just been added - refresh the filter dropdown
+      // along with the table itself.
+      fetchFilters();
+      fetchDirectoryData();
+    } catch (err) {
+      setUploadMessage({
+        type: "error",
+        text:
+          err.response?.data?.message ||
+          "Upload failed. Please check the file format and try again.",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const feedMillColumns = useMemo(
     () => [
@@ -218,8 +266,8 @@ function BusinessDirectoryContent() {
       columnHelper.accessor("feedMillName", {
         header: "Feed Mill",
         meta: {
-          headerClassName: "w-[30%] min-w-[220px]",
-          cellClassName: "w-[30%] min-w-[220px]",
+          headerClassName: "w-[25%] min-w-[200px]",
+          cellClassName: "w-[25%] min-w-[200px]",
         },
         cell: (info) => {
           const row = info.row.original;
@@ -245,8 +293,8 @@ function BusinessDirectoryContent() {
       columnHelper.accessor("millAddress", {
         header: "Address",
         meta: {
-          headerClassName: "w-[34%] min-w-[260px]",
-          cellClassName: "w-[34%] min-w-[260px]",
+          headerClassName: "w-[28%] min-w-[240px]",
+          cellClassName: "w-[28%] min-w-[240px]",
         },
         cell: (info) => (
           <div className="line-clamp-2 whitespace-normal word-break-words text-sm leading-relaxed text-muted-foreground">
@@ -257,8 +305,8 @@ function BusinessDirectoryContent() {
       columnHelper.accessor("millPhones", {
         header: "Contact",
         meta: {
-          headerClassName: "hidden lg:table-cell w-[18%]",
-          cellClassName: "hidden lg:table-cell w-[18%]",
+          headerClassName: "hidden lg:table-cell w-[15%]",
+          cellClassName: "hidden lg:table-cell w-[15%]",
         },
         cell: (info) => {
           const row = info.row.original;
@@ -279,8 +327,8 @@ function BusinessDirectoryContent() {
       columnHelper.accessor("productionCapacity", {
         header: "Capacity",
         meta: {
-          headerClassName: "hidden xl:table-cell w-[18%]",
-          cellClassName: "hidden xl:table-cell w-[18%]",
+          headerClassName: "hidden xl:table-cell w-[15%]",
+          cellClassName: "hidden xl:table-cell w-[15%]",
         },
         cell: (info) => {
           const row = info.row.original;
@@ -302,7 +350,61 @@ function BusinessDirectoryContent() {
     [expandedId],
   );
 
-  const columns = view === "feed-mills" ? feedMillColumns : salesTeamColumns;
+  // Refresh data after a successful form submission (create or update)
+  const handleFormSuccess = () => {
+    setEditingRecord(null);
+    setFormOpen(false);
+    fetchDirectoryData();
+  };
+
+  // Action column with Edit + Delete buttons (shared by both table views)
+  const actionsColumn = useMemo(
+    () => [
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        meta: {
+          headerClassName: "w-24",
+          cellClassName: "w-24",
+        },
+        cell: ({ row }) => {
+          const record = row.original;
+          const recordId = record._id || record.id;
+          return (
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setEditingRecord(record)}
+                title="Edit"
+              >
+                <Edit className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                onClick={() => handleDelete(recordId)}
+                disabled={deleting?.id === recordId}
+                title="Delete"
+              >
+                {deleting?.id === recordId ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [deleting, handleDelete],
+  );
+
+  const columns = [...feedMillColumns, ...actionsColumn];
 
   const table = useReactTable({
     data: rows,
@@ -321,7 +423,6 @@ function BusinessDirectoryContent() {
   }, [rows, table]);
 
   const toggleExpanded = (row) => {
-    if (view !== "feed-mills") return;
     const rowId = row._id || row.id || row.feedMillName;
     setExpandedId((prev) => (prev === rowId ? null : rowId));
   };
@@ -369,24 +470,58 @@ function BusinessDirectoryContent() {
     </TableRow>
   );
 
+  const handleExport = () => {
+    exportToCSV(
+      rows,
+      [
+        { label: "Feed Mill", key: "feedMillName" },
+        { label: "District/Region", key: "districtRegion" },
+        { label: "Owner", key: "millOwner" },
+        { label: "Mill Address", key: "millAddress" },
+        { label: "Office Address", key: "officeAddress" },
+        { label: "Mill Phones", key: "millPhones" },
+        { label: "Office Phones", key: "officePhones" },
+        { label: "Email", key: "email" },
+        { label: "Production Capacity", key: "productionCapacity" },
+        { label: "Bags Per Month", key: "bagsPerMonth" },
+      ],
+      "business-directory",
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Business Directory
-        </h1>
-        <Tabs value={view} onValueChange={setView}>
-          <TabsList>
-            <TabsTrigger value="feed-mills" className="gap-1.5">
-              <Factory className="w-4 h-4" />
-              Feed Mills
-            </TabsTrigger>
-            <TabsTrigger value="sales-team" className="gap-1.5">
-              <Users className="w-4 h-4" />
-              Sales Team
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Business Directory
+          </h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleFileSelected}
+          />
+          <Button
+            variant="outline"
+            onClick={handleUploadClick}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4 mr-2" />
+            )}
+            {uploading ? "Uploading..." : "Upload Excel File"}
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -406,60 +541,70 @@ function BusinessDirectoryContent() {
         </div>
       )}
 
+      {/* Upload result banner */}
+      {uploadMessage && (
+        <div
+          className={cn(
+            "flex items-start gap-3 rounded-lg border p-4 text-sm",
+            uploadMessage.type === "success"
+              ? "bg-green-50 border-green-200 text-green-800"
+              : "bg-red-50 border-red-200 text-red-800",
+          )}
+        >
+          {uploadMessage.type === "success" ? (
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+          ) : (
+            <AlertCircle className="w-5 h-5 shrink-0" />
+          )}
+          <span className="flex-1">{uploadMessage.text}</span>
+          <button
+            onClick={() => setUploadMessage(null)}
+            className="text-current opacity-70 hover:opacity-100"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle>
-              {view === "feed-mills" ? "All Feed Mills" : "All Sales Team"}
-            </CardTitle>
+            <CardTitle>All Feed Mills</CardTitle>
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder={
-                    view === "feed-mills"
-                      ? "Search name, owner, district..."
-                      : "Search name, designation, region..."
-                  }
+                  placeholder="Search name, owner, district..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-8 w-64"
                 />
               </div>
-              {view === "feed-mills" ? (
-                <Select value={district} onValueChange={setDistrict}>
-                  <SelectTrigger className="w-45">
-                    <SelectValue placeholder="All Districts" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Districts</SelectItem>
-                    {districts.map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {d}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Select value={designation} onValueChange={setDesignation}>
-                  <SelectTrigger className="w-45">
-                    <SelectValue placeholder="All Designations" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Designations</SelectItem>
-                    {designations.map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {d}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <Select value={district} onValueChange={setDistrict}>
+                <SelectTrigger className="w-45">
+                  <SelectValue placeholder="All Districts" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Districts</SelectItem>
+                  {districts.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            <Button
+              onClick={() => setEditingRecord({ _view: "feed-mills" })}
+              className="shrink-0"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add New Feed Mill
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table className={view === "feed-mills" ? "table-fixed" : ""}>
+          <Table className="table-fixed">
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -515,10 +660,7 @@ function BusinessDirectoryContent() {
                   <React.Fragment key={row.id}>
                     <TableRow
                       onClick={() => toggleExpanded(row.original)}
-                      className={cn(
-                        view === "feed-mills" &&
-                          "cursor-pointer align-top hover:bg-muted/40",
-                      )}
+                      className="cursor-pointer align-top hover:bg-muted/40"
                     >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell
@@ -535,11 +677,10 @@ function BusinessDirectoryContent() {
                         </TableCell>
                       ))}
                     </TableRow>
-                    {view === "feed-mills" &&
-                    expandedId ===
-                      (row.original._id ||
-                        row.original.id ||
-                        row.original.feedMillName)
+                    {expandedId ===
+                    (row.original._id ||
+                      row.original.id ||
+                      row.original.feedMillName)
                       ? renderFeedMillDetails(row.original)
                       : null}
                   </React.Fragment>
@@ -601,6 +742,17 @@ function BusinessDirectoryContent() {
           </div>
         </CardFooter>
       </Card>
+
+      {/* Add / Edit Form Modal */}
+      {editingRecord && (
+        <DirectoryForm
+          key={editingRecord._id || "new"}
+          view="feed-mills"
+          initialData={editingRecord._id ? editingRecord : undefined}
+          onClose={() => setEditingRecord(null)}
+          onSuccess={handleFormSuccess}
+        />
+      )}
     </div>
   );
 }

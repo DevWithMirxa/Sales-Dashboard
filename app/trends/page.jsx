@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
+import { exportToCSV } from "@/lib/csvExport";
 import {
   useReactTable,
   getCoreRowModel,
@@ -36,6 +37,7 @@ import {
   Wallet,
   ChevronLeft,
   ChevronRight,
+  Download,
   Upload,
   Loader2,
   CheckCircle2,
@@ -74,9 +76,9 @@ import { cn } from "@/lib/utils";
 const formatNumber = (n) =>
   n || n === 0 ? Math.round(n).toLocaleString("en-US") : "-";
 const formatRs = (n) =>
-  n || n === 0 ? `Rs ${Math.round(n).toLocaleString("en-US")}` : "-";
+  n || n === 0 ? ` ${Math.round(n).toLocaleString("en-US")}` : "-";
 const formatPct = (n) =>
-  n === null || n === undefined ? "-" : `${n.toFixed(1)}%`;
+  n === null || n === undefined ? "-" : `${n.toFixed(1)}`;
 
 const achievementVariant = (pct) => {
   if (pct === null || pct === undefined) return "outline";
@@ -225,7 +227,7 @@ function TrendsContent() {
         cell: (info) => formatNumber(info.getValue()),
       }),
       columnHelper.accessor("volumeAchievementPct", {
-        header: "Vol Achv",
+        header: "Vol Achv%",
         cell: (info) => (
           <Badge
             variant={achievementVariant(info.getValue())}
@@ -236,15 +238,15 @@ function TrendsContent() {
         ),
       }),
       columnHelper.accessor("targetValueRs", {
-        header: "Target Value",
+        header: "Target Value (Rs)",
         cell: (info) => formatRs(info.getValue()),
       }),
       columnHelper.accessor("saleValueRs", {
-        header: "Sale Value",
+        header: "Sale Value (Rs)",
         cell: (info) => formatRs(info.getValue()),
       }),
       columnHelper.accessor("valueAchievementPct", {
-        header: "Value Achv",
+        header: "Value Achv%",
         cell: (info) => (
           <Badge
             variant={achievementVariant(info.getValue())}
@@ -404,11 +406,38 @@ function TrendsContent() {
       }));
   }, [series, selectedEntity, entityKey]);
 
+  const handleExport = () => {
+    exportToCSV(
+      rows,
+      [
+        {
+          label: view === "product" ? "Product" : "Salesperson",
+          key: entityKey,
+        },
+        { label: "Target Vol (Kg)", key: "targetVolumeKg" },
+        { label: "Sale Vol (Kg)", key: "saleVolumeKg" },
+        { label: "Volume Achievement (%)", key: "volumeAchievementPct" },
+        { label: "Target Value (Rs)", key: "targetValueRs" },
+        { label: "Sale Value (Rs)", key: "saleValueRs" },
+        { label: "Value Achievement (%)", key: "valueAchievementPct" },
+      ],
+      `trends-${view}`,
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Trends</h1>
         <div className="flex flex-wrap gap-3 items-center">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={!rows.length}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -643,8 +672,8 @@ function TrendsContent() {
                       key={index}
                       fill={
                         entry[entityKey] === selectedEntity
-                          ? "hsl(var(--primary))"
-                          : "hsl(var(--primary) / 0.35)"
+                          ? "oklch(0.488 0.243 264.376)"
+                          : "oklch(0.6 0.2 240)"
                       }
                     />
                   ))}

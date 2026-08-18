@@ -1,11 +1,30 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import api from "@/lib/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const PERIODS = ["Daily", "Weekly", "Monthly", "Quarterly", "Yearly"];
 const STATUSES = ["active", "inactive", "completed"];
+const UNITS = ["kg", "bags", "tons", "units"];
 
 const buildFormData = (editingTarget) => {
   if (!editingTarget) {
@@ -36,11 +55,14 @@ const buildFormData = (editingTarget) => {
 };
 
 export default function TargetForm({ onClose, editingTarget, onSuccess }) {
+  const isEdit = Boolean(editingTarget?._id);
   const [formData, setFormData] = useState(buildFormData(editingTarget));
   const [salesmen, setSalesmen] = useState([]);
   const [products, setProducts] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState("");
 
   const [productForm, setProductForm] = useState({
     productId: "",
@@ -77,8 +99,7 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
   const selectedSalesman = salesmen.find((s) => s._id === formData.assignedTo);
   const selectedProduct = products.find((p) => p._id === productForm.productId);
 
-  const handleSalesmanChange = (e) => {
-    const assignedTo = e.target.value;
+  const handleSalesmanChange = (assignedTo) => {
     const salesman = salesmen.find((s) => s._id === assignedTo);
     setFormData((prev) => ({
       ...prev,
@@ -86,11 +107,13 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
       // auto-fill region from the salesman's area, but the user can still edit it below
       region: salesman?.area || prev.region,
     }));
+    setErrors((prev) => ({ ...prev, assignedTo: undefined }));
   };
 
   const handleFieldChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
   const handleProductChange = (e) => {
@@ -161,19 +184,21 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
       0,
     );
 
+  const validate = () => {
+    const nextErrors = {};
+    if (!formData.assignedTo) nextErrors.assignedTo = "Please select a salesman";
+    if (formData.products.length === 0)
+      nextErrors.products = "Please add at least one product";
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError("");
+    if (!validate()) return;
 
-    if (!formData.assignedTo) {
-      alert("Please select a salesman");
-      return;
-    }
-    if (formData.products.length === 0) {
-      alert("Please add at least one product");
-      return;
-    }
-
-    setLoading(true);
+    setSubmitting(true);
     try {
       const payload = {
         targetName: formData.targetName.trim(),
@@ -189,345 +214,341 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
         })),
       };
 
-      if (editingTarget && editingTarget._id) {
+      if (isEdit) {
         await api.put(`/targets/${editingTarget._id}`, payload);
       } else {
         await api.post("/targets", payload);
       }
-
-      if (onSuccess) onSuccess();
+      onSuccess();
       onClose();
     } catch (error) {
       console.error("Error saving target:", error);
-      const message = error.response?.data?.message || "Failed to save target";
-      alert(message);
+      setFormError(
+        error?.response?.data?.message ||
+          "Unable to save this target. Please check the fields and try again.",
+      );
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">
-            {editingTarget ? "Edit Target Assignment" : "Assign Sales Target"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {isEdit ? "Edit Target Assignment" : "Assign Sales Target"}
+          </DialogTitle>
+          <DialogDescription>
+            {isEdit
+              ? "Update the target assignment below and save your changes."
+              : "Set a sales target for a salesman and assign product-wise targets."}
+          </DialogDescription>
+        </DialogHeader>
 
         {loadingOptions ? (
-          <div className="p-12 text-center text-gray-500">
-            Loading salesmen &amp; products...
+          <div className="flex items-center justify-center py-12 text-sm text-gray-500">
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Loading salesmen
+            &amp; products...
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {/* Target Details */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Target Details
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Target Name (optional)
-                  </label>
-                  <input
-                    type="text"
-                    name="targetName"
-                    value={formData.targetName}
-                    onChange={handleFieldChange}
-                    placeholder="e.g. Q1 Feed Push"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Period
-                  </label>
-                  <select
-                    name="period"
-                    value={formData.period}
-                    onChange={handleFieldChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {formError && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {formError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="targetName">Target Name (optional)</Label>
+                <Input
+                  id="targetName"
+                  type="text"
+                  name="targetName"
+                  value={formData.targetName}
+                  onChange={handleFieldChange}
+                  placeholder="e.g. Q1 Feed Push"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="period">Period</Label>
+                <Select
+                  value={formData.period}
+                  onValueChange={(v) =>
+                    handleFieldChange({ target: { name: "period", value: v } })
+                  }
+                >
+                  <SelectTrigger id="period">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
                     {PERIODS.map((p) => (
-                      <option key={p} value={p}>
+                      <SelectItem key={p} value={p}>
                         {p}
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
-                </div>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            {/* Salesman Selection */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Select Salesman
-              </h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Salesman
-                    </label>
-                    <select
-                      value={formData.assignedTo}
-                      onChange={handleSalesmanChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select a salesman</option>
-                      {salesmen.map((salesman) => (
-                        <option key={salesman._id} value={salesman._id}>
-                          {salesman.name}{" "}
-                          {salesman.area ? `- ${salesman.area}` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Region
-                    </label>
-                    <input
-                      type="text"
-                      name="region"
-                      value={formData.region}
-                      onChange={handleFieldChange}
-                      placeholder="Auto-filled from salesman, editable"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                {selectedSalesman && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-2">
-                      Selected Salesman
-                    </h4>
-                    <div className="text-sm text-gray-600 space-y-1">
-                      <p>
-                        <strong>Name:</strong> {selectedSalesman.name}
-                      </p>
-                      <p>
-                        <strong>Area:</strong> {selectedSalesman.area || "-"}
-                      </p>
-                      <p>
-                        <strong>Designation:</strong>{" "}
-                        {selectedSalesman.designation || "-"}
-                      </p>
-                    </div>
-                  </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="assignedTo">
+                  Salesman<span className="text-red-500 ml-0.5">*</span>
+                </Label>
+                <Select
+                  value={formData.assignedTo || ""}
+                  onValueChange={handleSalesmanChange}
+                >
+                  <SelectTrigger id="assignedTo">
+                    <SelectValue placeholder="Select a salesman" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salesmen.map((salesman) => (
+                      <SelectItem key={salesman._id} value={salesman._id}>
+                        {salesman.name}
+                        {salesman.area ? ` - ${salesman.area}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.assignedTo && (
+                  <p className="text-xs text-red-600">{errors.assignedTo}</p>
                 )}
               </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="region">Region</Label>
+                <Input
+                  id="region"
+                  type="text"
+                  name="region"
+                  value={formData.region}
+                  onChange={handleFieldChange}
+                  placeholder="Auto-filled from salesman, editable"
+                />
+              </div>
             </div>
 
-            {/* Products Section */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            {selectedSalesman && (
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm">
+                <p className="mb-2 font-semibold text-gray-900">
+                  Selected Salesman
+                </p>
+                <div className="space-y-1 text-gray-600">
+                  <p>
+                    <strong>Name:</strong> {selectedSalesman.name}
+                  </p>
+                  <p>
+                    <strong>Area:</strong> {selectedSalesman.area || "-"}
+                  </p>
+                  <p>
+                    <strong>Designation:</strong>{" "}
+                    {selectedSalesman.designation || "-"}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(v) =>
+                  handleFieldChange({ target: { name: "status", value: v } })
+                }
+              >
+                <SelectTrigger id="status" className="w-full sm:w-48 capitalize">
+                  <SelectValue className="capitalize" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s} className="capitalize">
+                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+
+            <div className="space-y-4 rounded-md border border-gray-200 bg-gray-50 p-4">
+              <Label className="text-sm font-medium">
                 Assign Products &amp; Targets
-              </h3>
-              <div className="space-y-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
-                {/* Product Input Form */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Product
-                    </label>
-                    <select
-                      name="productId"
-                      value={productForm.productId}
-                      onChange={handleProductChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select a product</option>
+              </Label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="productId">Product</Label>
+                  <Select
+                    value={productForm.productId || ""}
+                    onValueChange={(v) =>
+                      handleProductChange({ target: { name: "productId", value: v } })
+                    }
+                  >
+                    <SelectTrigger id="productId">
+                      <SelectValue placeholder="Select a product" />
+                    </SelectTrigger>
+                    <SelectContent>
                       {products.map((product) => {
                         const isAdded = formData.products.some(
                           (p) => p.productId === product._id,
                         );
                         return (
-                          <option
+                          <SelectItem
                             key={product._id}
                             value={product._id}
                             disabled={isAdded}
                           >
-                            {product.name} {isAdded ? "(Already Added)" : ""}
-                          </option>
+                            {product.name}
+                            {isAdded ? " (Already Added)" : ""}
+                          </SelectItem>
                         );
                       })}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Target Quantity ({productForm.unit})
-                      </label>
-                      <input
-                        type="number"
-                        name="targetQuantity"
-                        value={productForm.targetQuantity}
-                        onChange={handleProductChange}
-                        placeholder="Enter quantity"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Unit
-                      </label>
-                      <select
-                        name="unit"
-                        value={productForm.unit}
-                        onChange={handleProductChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option>kg</option>
-                        <option>bags</option>
-                        <option>tons</option>
-                        <option>units</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Target Revenue (Rs)
-                      </label>
-                      <input
-                        type="number"
-                        name="targetRevenue"
-                        value={productForm.targetRevenue}
-                        onChange={handleProductChange}
-                        placeholder="Auto-calculated if blank"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      {selectedProduct && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          List price: Rs.{" "}
-                          {(selectedProduct.price || 0).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleAddProduct}
-                    className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Add Product to Target
-                  </button>
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                {/* Added Products List */}
-                {formData.products.length > 0 && (
-                  <div className="mt-6 border-t border-gray-200 pt-4">
-                    <h4 className="font-semibold text-gray-900 mb-3">
-                      Added Products
-                    </h4>
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {formData.products.map((product) => (
-                        <div
-                          key={product.productId}
-                          className="flex items-center justify-between bg-white p-3 border border-gray-200 rounded-lg"
-                        >
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">
-                              {product.name}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              Qty: {product.targetQuantity} {product.unit} |
-                              Revenue: Rs.{" "}
-                              {Number(product.targetRevenue).toLocaleString()}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleRemoveProduct(product.productId)
-                            }
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="targetQuantity">
+                    Target Quantity ({productForm.unit})
+                  </Label>
+                  <Input
+                    id="targetQuantity"
+                    type="number"
+                    name="targetQuantity"
+                    value={productForm.targetQuantity}
+                    onChange={handleProductChange}
+                    placeholder="Enter quantity"
+                  />
+                </div>
 
-                    {/* Summary */}
-                    <div className="mt-4 pt-4 border-t border-gray-200 bg-blue-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-center">
+                <div className="space-y-1.5">
+                  <Label htmlFor="unit">Unit</Label>
+                  <Select
+                    value={productForm.unit}
+                    onValueChange={(v) =>
+                      handleProductChange({ target: { name: "unit", value: v } })
+                    }
+                  >
+                    <SelectTrigger id="unit">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UNITS.map((u) => (
+                        <SelectItem key={u} value={u} className="capitalize">
+                          {u}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="targetRevenue">Target Revenue (Rs)</Label>
+                  <Input
+                    id="targetRevenue"
+                    type="number"
+                    name="targetRevenue"
+                    value={productForm.targetRevenue}
+                    onChange={handleProductChange}
+                    placeholder="Auto-calculated if blank"
+                  />
+                  {selectedProduct && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      List price: Rs.{" "}
+                      {(selectedProduct.price || 0).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="default"
+                className="w-full"
+                onClick={handleAddProduct}
+              >
+                <Plus className="w-4 h-4 mr-2" /> Add Product to Target
+              </Button>
+
+              {formData.products.length > 0 && (
+                <div className="mt-4 border-t border-gray-200 pt-4">
+                  <h4 className="mb-3 font-semibold text-gray-900">
+                    Added Products
+                  </h4>
+                  <div className="max-h-64 space-y-2 overflow-y-auto">
+                    {formData.products.map((product) => (
+                      <div
+                        key={product.productId}
+                        className="flex items-center justify-between rounded-md border border-gray-200 bg-white p-3"
+                      >
                         <div>
-                          <p className="text-sm text-gray-600">
-                            Total Products: {formData.products.length}
+                          <p className="font-medium text-gray-900">
+                            {product.name}
                           </p>
                           <p className="text-sm text-gray-600">
-                            Total Quantity: {calculateTotalQuantity()}
+                            Qty: {product.targetQuantity} {product.unit} |
+                            Revenue: Rs.{" "}
+                            {Number(product.targetRevenue).toLocaleString()}
                           </p>
                         </div>
-                        <p className="text-lg font-bold text-blue-600">
-                          Total Revenue: Rs.{" "}
-                          {calculateTotalRevenue().toLocaleString()}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                          onClick={() => handleRemoveProduct(product.productId)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 rounded-md bg-blue-50 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm text-gray-600">
+                          Total Products: {formData.products.length}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Total Quantity: {calculateTotalQuantity()}
                         </p>
                       </div>
+                      <p className="text-lg font-bold text-blue-600">
+                        Total Revenue: Rs.{" "}
+                        {calculateTotalRevenue().toLocaleString()}
+                      </p>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {errors.products && (
+                <p className="text-xs text-red-600">{errors.products}</p>
+              )}
             </div>
 
-            {/* Status */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status
-              </label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={handleFieldChange}
-                className="w-full sm:w-48 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Form Actions */}
-            <div className="flex gap-4 pt-6 border-t border-gray-200">
-              <button
+            <DialogFooter>
+              <Button
                 type="button"
+                variant="outline"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+                disabled={submitting}
               >
                 Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50"
-              >
-                {loading
-                  ? "Saving..."
-                  : editingTarget
-                    ? "Update Target"
-                    : "Assign Target"}
-              </button>
-            </div>
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {isEdit ? "Save Changes" : "Save Target"}
+              </Button>
+            </DialogFooter>
           </form>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

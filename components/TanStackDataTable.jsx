@@ -27,18 +27,32 @@ export default function TanStackDataTable({
   loadingMessage = "Loading...",
   getRowId,
   initialSorting = [],
+  // New, optional: pass both to lift sorting state to the parent (e.g. to
+  // sort a full dataset before slicing it for client-side pagination).
+  // Omit both (as every existing caller does) and behavior is unchanged -
+  // the table manages its own sorting state internally.
+  sorting: controlledSorting,
+  onSortingChange: controlledOnSortingChange,
   onRowClick,
   rowClassName,
   renderSubRow,
   wrapperClassName = "bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden",
 }) {
-  const [sorting, setSorting] = useState(initialSorting);
+  const [internalSorting, setInternalSorting] = useState(initialSorting);
+  const isControlled = controlledSorting !== undefined;
+  const sorting = isControlled ? controlledSorting : internalSorting;
+  const setSorting = isControlled
+    ? controlledOnSortingChange
+    : setInternalSorting;
 
   const table = useReactTable({
     data,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
+    // When sorting is controlled, the parent is responsible for sorting
+    // `data` before it gets here (usually because it's also paginating).
+    manualSorting: isControlled,
     getRowId: (row, index) => {
       if (typeof getRowId === "function") {
         const customId = getRowId(row, index);
@@ -50,14 +64,14 @@ export default function TanStackDataTable({
       return getStableRowId(row, index);
     },
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    ...(isControlled ? {} : { getSortedRowModel: getSortedRowModel() }),
   });
 
   const visibleColumns = table.getVisibleLeafColumns().length;
 
   return (
     <div className={wrapperClassName}>
-      <Table>
+      <Table className="table-fixed w-full">
         <TableHeader className="bg-gray-50 border-b border-gray-200">
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
@@ -74,7 +88,7 @@ export default function TanStackDataTable({
                         : undefined
                     }
                     className={[
-                      "px-6 py-3 text-left text-sm font-semibold text-gray-900",
+                      "px-3 py-3 sm:px-4 md:px-6 text-left text-sm font-semibold text-gray-900 align-top",
                       canSort ? "cursor-pointer select-none" : "",
                       header.column.columnDef.meta?.headerClassName || "",
                     ]
@@ -162,7 +176,7 @@ export default function TanStackDataTable({
                       <TableCell
                         key={cell.id}
                         className={[
-                          "px-6 py-4 text-sm text-gray-600",
+                          "px-3 py-3 sm:px-4 md:px-6 md:py-4 text-sm text-gray-600 align-top wrap-break-word",
                           cell.column.columnDef.meta?.cellClassName || "",
                         ]
                           .filter(Boolean)

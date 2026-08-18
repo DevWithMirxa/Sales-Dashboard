@@ -1,18 +1,32 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import ProductForm from "@/components/forms/ProductForm";
 import TanStackDataTable from "@/components/TanStackDataTable";
-import { Plus, Trash2, Edit2 } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  Download,
+  Upload,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  X,
+} from "lucide-react";
 import api from "@/lib/api";
+import { exportToCSV } from "@/lib/csvExport";
 
 function Products() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState(null); // { type: 'success' | 'error', text }
+  const fileInputRef = useRef(null);
 
   const fetchProducts = async () => {
     try {
@@ -47,9 +61,64 @@ function Products() {
     setShowForm(true);
   };
 
+  const handleExport = () => {
+    exportToCSV(
+      products,
+      [
+        { label: "Product Name", key: "name" },
+        { label: "Price (Rs/Kg)", key: "pricePerKg" },
+        { label: "Packing Size (Kg)", key: "packingKg" },
+        { label: "Status", key: "status" },
+      ],
+      "products",
+    );
+  };
+
   const handleCloseForm = () => {
     setShowForm(false);
     setEditingProduct(null);
+  };
+
+  const handleUploadClick = () => fileInputRef.current?.click();
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset so selecting the same file again still fires onChange
+    if (!file) return;
+
+    setUploading(true);
+    setUploadMessage(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await api.post("/products/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const {
+        inserted = 0,
+        updated = 0,
+        skipped = 0,
+        totalRows = 0,
+      } = res.data || {};
+      setUploadMessage({
+        type: "success",
+        text: `Imported ${inserted + updated} of ${totalRows} rows (${inserted} new, ${updated} updated${
+          skipped ? `, ${skipped} skipped` : ""
+        }).`,
+      });
+      fetchProducts();
+    } catch (err) {
+      setUploadMessage({
+        type: "error",
+        text:
+          err.response?.data?.message ||
+          "Upload failed. Please check the file format and try again.",
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   const columns = useMemo(
@@ -65,12 +134,12 @@ function Products() {
       {
         accessorKey: "pricePerKg",
         header: "Price (Rs/Kg)",
-        cell: ({ getValue }) => `Rs ${getValue()}`,
+        cell: ({ getValue }) => `${getValue()}`,
       },
       {
         accessorKey: "packingKg",
         header: "Packing Size (Kg)",
-        cell: ({ getValue }) => `${getValue()} Kg`,
+        cell: ({ getValue }) => `${getValue()}`,
       },
       {
         id: "actions",
@@ -102,16 +171,68 @@ function Products() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-4">
           <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Add Product
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Download className="w-5 h-5" />
+              Export
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleFileSelected}
+            />
+            <button
+              onClick={handleUploadClick}
+              disabled={uploading}
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+            >
+              {uploading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Upload className="w-5 h-5" />
+              )}
+              {uploading ? "Uploading..." : "Upload Excel File"}
+            </button>
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add Product
+            </button>
+          </div>
         </div>
+
+        {/* Upload result banner */}
+        {uploadMessage && (
+          <div
+            className={`flex items-start gap-3 rounded-lg border p-4 text-sm ${
+              uploadMessage.type === "success"
+                ? "bg-green-50 border-green-200 text-green-800"
+                : "bg-red-50 border-red-200 text-red-800"
+            }`}
+          >
+            {uploadMessage.type === "success" ? (
+              <CheckCircle2 className="w-5 h-5 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 shrink-0" />
+            )}
+            <span className="flex-1">{uploadMessage.text}</span>
+            <button
+              onClick={() => setUploadMessage(null)}
+              className="text-current opacity-70 hover:opacity-100"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         <TanStackDataTable
           columns={columns}
@@ -123,15 +244,11 @@ function Products() {
 
         {/* Form Modal */}
         {showForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
-              <ProductForm
-                onClose={handleCloseForm}
-                initialData={editingProduct}
-                onSuccess={fetchProducts}
-              />
-            </div>
-          </div>
+          <ProductForm
+            onClose={handleCloseForm}
+            initialData={editingProduct}
+            onSuccess={fetchProducts}
+          />
         )}
       </div>
     </DashboardLayout>

@@ -1,10 +1,32 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-const emptyContact = (primary = false) => ({ label: "", number: "", primary });
+const emptyContact = (primary = false) => ({
+  label: "",
+  number: "",
+  primary,
+});
 
 // Backward compatibility: older records only had a single `contactNumber` string.
 const buildContacts = (initialData) => {
@@ -25,19 +47,34 @@ const buildContacts = (initialData) => {
   return [emptyContact(true)];
 };
 
+const areas = [
+  "Lahore",
+  "Rawalpindi/Islamabad",
+  "Kamalia/Samundari",
+  "Sahiwal",
+  "Multan",
+  "Karachi",
+];
+
 export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
+  const isEdit = Boolean(initialData?._id);
   const [formData, setFormData] = useState({
     name: "",
     contacts: [emptyContact(true)],
     email: "",
     designation: "",
     area: "",
+    status: "active",
+    // These nested fields aren't edited in this dialog but are carried
+    // through so that editing a sales person doesn't wipe them out.
     productTarget: { Rs: "", MT: "", period: "M" },
     productSale: { Rs: "", MT: "", period: "M" },
     percentageSale: { value: "", period: "M" },
     recovery: { customer: "", amount: "" },
   });
-  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -47,6 +84,7 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
         email: initialData.email || "",
         designation: initialData.designation || "",
         area: initialData.area || "",
+        status: initialData.status || "active",
         productTarget: initialData.productTarget || {
           Rs: "",
           MT: "",
@@ -65,13 +103,7 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleNestedChange = (parent, field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [parent]: { ...prev[parent], [field]: value },
-    }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
   const handleContactChange = (index, field, value) => {
@@ -106,9 +138,27 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
     }));
   };
 
+  const validate = () => {
+    const nextErrors = {};
+    if (!String(formData.name || "").trim()) {
+      nextErrors.name = "Name is required";
+    }
+    if (
+      !formData.contacts.some((c) => String(c.number || "").trim()) &&
+      !String(formData.email || "").trim()
+    ) {
+      nextErrors.contacts = "Add at least one contact number or an email";
+    }
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setFormError("");
+    if (!validate()) return;
+
+    setSubmitting(true);
     try {
       const contacts = formData.contacts
         .map((c) => ({
@@ -130,161 +180,159 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
           (contacts.find((c) => c.primary) || contacts[0] || {}).number || "",
       };
 
-      if (initialData && initialData._id) {
+      if (isEdit) {
         await api.put(`/salesmen/${initialData._id}`, payload);
       } else {
         await api.post("/salesmen", payload);
       }
-      if (onSuccess) onSuccess();
+      onSuccess();
       onClose();
     } catch (error) {
       console.error("Error saving salesman:", error);
-      alert("Failed to save salesman");
+      setFormError(
+        error?.response?.data?.message ||
+          "Unable to save this sales person. Please check the fields and try again.",
+      );
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const areas = [
-    "Lahore",
-    "Rawalpindi/Islamabad",
-    "Kamalia/Samundari",
-    "Sahiwal",
-    "Multan",
-    "Karachi",
-  ];
-
-  const periods = [
-    { label: "Daily", value: "D" },
-    { label: "Weekly", value: "W" },
-    { label: "Monthly", value: "M" },
-    { label: "Quarterly", value: "Q" },
-    { label: "Yearly", value: "Y" },
-  ];
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">Add Sales Person</h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Edit" : "Add New"} Sales Person</DialogTitle>
+          <DialogDescription>
+            {isEdit
+              ? "Update the sales person details below and save your changes."
+              : "Fill in the details below to add a new sales person."}
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Form Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Basic Information */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Basic Information
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Name
-                </label>
-                <input
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {formError && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {formError}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="name">
+                Name<span className="text-red-500 ml-0.5">*</span>
+              </Label>
+              <Input
+                id="name"
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="Enter sales person name"
+              />
+              {errors.name && (
+                <p className="text-xs text-red-600">{errors.name}</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="designation">Designation</Label>
+                <Input
+                  id="designation"
                   type="text"
-                  name="name"
-                  value={formData.name}
+                  name="designation"
+                  value={formData.designation}
                   onChange={handleChange}
-                  placeholder="Enter sales person name"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Executive"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Designation
-                  </label>
-                  <input
-                    type="text"
-                    name="designation"
-                    value={formData.designation}
-                    onChange={handleChange}
-                    placeholder="e.g., Executive"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Area (Region)
-                  </label>
-                  <select
-                    name="area"
-                    value={formData.area}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select Region</option>
+              <div className="space-y-1.5">
+                <Label htmlFor="area">Area (Region)</Label>
+                <Select
+                  value={formData.area || ""}
+                  onValueChange={(v) =>
+                    handleChange({ target: { name: "area", value: v } })
+                  }
+                >
+                  <SelectTrigger id="area">
+                    <SelectValue placeholder="Select region" />
+                  </SelectTrigger>
+                  <SelectContent>
                     {areas.map((area) => (
-                      <option key={area} value={area}>
+                      <SelectItem key={area} value={area}>
                         {area}
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
-                </div>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={formData.status || "active"}
+                  onValueChange={(v) =>
+                    handleChange({ target: { name: "status", value: v } })
+                  }
+                >
+                  <SelectTrigger id="status">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
 
-          {/* Contact Numbers (multiple) */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Contact Numbers
-              </h3>
-              <button
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <Label className="text-sm font-medium">Contact Numbers</Label>
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={addContact}
-                className="px-3 py-1.5 text-sm bg-gray-100 rounded hover:bg-gray-200 transition-colors"
               >
                 + Add contact
-              </button>
+              </Button>
             </div>
             <div className="space-y-3">
               {formData.contacts.map((c, idx) => (
                 <div
                   key={idx}
-                  className="p-3 border border-gray-200 rounded-lg"
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border border-gray-200 p-3"
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr,1fr,auto,auto] gap-3 items-end">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Label
-                      </label>
-                      <input
-                        type="text"
-                        list="contact-label-suggestions"
-                        value={c.label}
-                        onChange={(e) =>
-                          handleContactChange(idx, "label", e.target.value)
-                        }
-                        placeholder="e.g., Primary, WhatsApp"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Number
-                      </label>
-                      <input
-                        type="tel"
-                        value={c.number}
-                        onChange={(e) =>
-                          handleContactChange(idx, "number", e.target.value)
-                        }
-                        placeholder="Enter contact number"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <label className="flex items-center gap-2 text-sm pb-2 whitespace-nowrap">
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`contact-label-${idx}`}>Label</Label>
+                    <Input
+                      id={`contact-label-${idx}`}
+                      value={c.label}
+                      onChange={(e) =>
+                        handleContactChange(idx, "label", e.target.value)
+                      }
+                      placeholder="e.g., Primary, WhatsApp"
+                      list="contact-label-suggestions"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`contact-number-${idx}`}>Number</Label>
+                    <Input
+                      id={`contact-number-${idx}`}
+                      type="tel"
+                      value={c.number}
+                      onChange={(e) =>
+                        handleContactChange(idx, "number", e.target.value)
+                      }
+                      placeholder="Enter contact number"
+                    />
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
                       <input
                         type="radio"
                         name="primaryContact"
@@ -293,14 +341,16 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
                       />
                       Primary
                     </label>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => removeContact(idx)}
                       disabled={formData.contacts.length === 1}
-                      className="text-sm text-red-600 disabled:text-gray-300 pb-2 whitespace-nowrap"
+                      className="text-red-600 hover:text-red-700"
                     >
                       Remove
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -309,45 +359,40 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
                 <option value="Secondary" />
                 <option value="WhatsApp" />
               </datalist>
+              {errors.contacts && (
+                <p className="text-xs text-red-600">{errors.contacts}</p>
+              )}
             </div>
           </div>
 
-          {/* Email */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Email</h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="Enter email address"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email Address</Label>
+            <Input
+              id="email"
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="Enter email address"
+            />
           </div>
 
-          {/* Form Actions */}
-          <div className="flex gap-4 pt-6 border-t border-gray-200">
-            <button
+          <DialogFooter>
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+              disabled={submitting}
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
-            >
-              Save Sales Person
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isEdit ? "Save Changes" : "Add Sales Person"}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

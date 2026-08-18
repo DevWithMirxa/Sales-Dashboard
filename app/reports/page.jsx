@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
@@ -8,6 +9,7 @@ import {
   BarChart,
   Bar,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -26,6 +28,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -112,53 +121,6 @@ const getPeriodBucket = (period, view) => {
     label: monthLabel(period),
     sortValue: year * 100 + month,
   };
-};
-
-const getNextPeriodLabels = (bucket, view, count = 4) => {
-  if (!bucket) return Array.from({ length: count }, (_, i) => `P${i + 1}`);
-
-  if (view === "quarterly") {
-    const [, yearText, quarterText] =
-      bucket.key.match(/^(\d{4})-Q([1-4])$/) || [];
-    const startYear = Number(yearText);
-    const startQuarter = Number(quarterText);
-    return Array.from({ length: count }, (_, index) => {
-      const absoluteQuarter = startQuarter + index;
-      const year = startYear + Math.floor(absoluteQuarter / 4);
-      const quarter = (absoluteQuarter % 4) + 1;
-      return `Q${quarter} ${year}`;
-    });
-  }
-
-  if (view === "yearly") {
-    const year = Number(bucket.key);
-    return Array.from({ length: count }, (_, index) =>
-      String(year + index + 1),
-    );
-  }
-
-  const [yearText, monthText] = bucket.key.split("-");
-  const start = new Date(Number(yearText), Number(monthText) - 1, 1);
-  return Array.from({ length: count }, (_, index) => {
-    const next = new Date(start.getFullYear(), start.getMonth() + index + 1, 1);
-    return monthLabel(
-      `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`,
-    );
-  });
-};
-
-const buildForecast = (historyValues) => {
-  if (!historyValues.length) return Array.from({ length: 4 }, () => 0);
-
-  const values = historyValues.map((value) => Number(value || 0));
-  const lastValue = values[values.length - 1] || 0;
-  const firstValue = values[0] || 0;
-  const slope =
-    values.length > 1 ? (lastValue - firstValue) / (values.length - 1) : 0;
-
-  return Array.from({ length: 4 }, (_, index) =>
-    Math.max(0, lastValue + slope * (index + 1)),
-  );
 };
 
 export default function ReportsPage() {
@@ -362,6 +324,18 @@ export default function ReportsPage() {
     ? periodOptions.quartersByYear[selectedYear] || []
     : [];
 
+  // The "Sales trend by period" chart shows every month/quarter within the
+  // selected year (so it stays a real trend, not a single point), while the
+  // bar for the exact period picked above (activePeriod) is highlighted -
+  // that's how a user finds "how much did March sell" inside the chart.
+  // Annual view has no year-scoping since each bar already is a year.
+  const chartPeriodSeries = useMemo(() => {
+    if (view === "yearly" || !selectedYear) return periodSeries;
+    return periodSeries.filter(
+      (row) => row.key.split("-")[0] === String(selectedYear),
+    );
+  }, [periodSeries, view, selectedYear]);
+
   const salespersonReport = useMemo(() => {
     const groups = {};
 
@@ -455,93 +429,6 @@ export default function ReportsPage() {
       }))
       .sort((left, right) => right.recoveryAmount - left.recoveryAmount);
   }, [salesmen]);
-
-  const forecastProductRows = useMemo(() => {
-    const grouped = {};
-
-    trendRows.forEach((row) => {
-      const product = row.product || "Unknown";
-      const bucket = getPeriodBucket(row.period, view);
-      if (!bucket) return;
-      if (!grouped[product]) {
-        grouped[product] = {};
-      }
-
-      if (!grouped[product][bucket.key]) {
-        grouped[product][bucket.key] = {
-          label: bucket.label,
-          sortValue: bucket.sortValue,
-          value: 0,
-        };
-      }
-
-      grouped[product][bucket.key].value =
-        Number(grouped[product][bucket.key].value || 0) +
-        Number(row.saleValueRs || 0);
-    });
-
-    return Object.entries(grouped)
-      .map(([product, periodValues]) => {
-        const orderedPeriods = Object.values(periodValues)
-          .sort((left, right) => left.sortValue - right.sortValue)
-          .slice(-6);
-        const history = orderedPeriods.map((period) => period.value);
-        const forecast = buildForecast(history);
-
-        return {
-          product,
-          history: history[history.length - 1] || 0,
-          latestPeriod: orderedPeriods[orderedPeriods.length - 1]?.label || "-",
-          forecast,
-          forecastLabels: getNextPeriodLabels(activePeriod, view),
-        };
-      })
-      .sort((left, right) => right.history - left.history)
-      .slice(0, 6);
-  }, [trendRows, view, activePeriod]);
-
-  const forecastRegionRows = useMemo(() => {
-    const grouped = {};
-
-    trendRows.forEach((row) => {
-      const region = salesmanLookup.get(row.salesperson)?.area || "Unknown";
-      const bucket = getPeriodBucket(row.period, view);
-      if (!bucket) return;
-      if (!grouped[region]) {
-        grouped[region] = {};
-      }
-
-      if (!grouped[region][bucket.key]) {
-        grouped[region][bucket.key] = {
-          label: bucket.label,
-          sortValue: bucket.sortValue,
-          value: 0,
-        };
-      }
-
-      grouped[region][bucket.key].value =
-        Number(grouped[region][bucket.key].value || 0) +
-        Number(row.saleValueRs || 0);
-    });
-
-    return Object.entries(grouped)
-      .map(([region, periodValues]) => {
-        const orderedPeriods = Object.values(periodValues)
-          .sort((left, right) => left.sortValue - right.sortValue)
-          .slice(-6);
-        const history = orderedPeriods.map((period) => period.value);
-        const forecast = buildForecast(history);
-
-        return {
-          region,
-          history: history[history.length - 1] || 0,
-          latestPeriod: orderedPeriods[orderedPeriods.length - 1]?.label || "-",
-          forecast,
-          forecastLabels: getNextPeriodLabels(activePeriod, view),
-        };
-      })
-      .sort((left, right) => right.history - left.history);
-  }, [trendRows, salesmanLookup, view, activePeriod]);
 
   const totals = useMemo(() => {
     const saleValue = filteredTrendRows.reduce(
@@ -778,64 +665,6 @@ export default function ReportsPage() {
           }
         },
       },
-      {
-        id: "forecast",
-        label: "Forecasting by product & region",
-        fileSlug: "forecasting",
-        render: (doc, ctx) => {
-          ctx.addSectionTitle(
-            doc,
-            ctx,
-            `Forecasting by product (next 4 ${viewUnit(view)}s)`,
-          );
-          if (forecastProductRows.length) {
-            ctx.addTable(
-              doc,
-              ctx,
-              [
-                "Product",
-                "Latest Period",
-                "Latest Sales",
-                ...getNextPeriodLabels(activePeriod, view),
-              ],
-              forecastProductRows.map((item) => [
-                item.product,
-                item.latestPeriod,
-                formatCurrency(item.history),
-                ...item.forecast.map(formatCurrency),
-              ]),
-            );
-          } else {
-            ctx.addEmptyNote(doc, ctx, "No forecast history available.");
-          }
-
-          ctx.addSectionTitle(
-            doc,
-            ctx,
-            `Forecasting by region (next 4 ${viewUnit(view)}s)`,
-          );
-          if (forecastRegionRows.length) {
-            ctx.addTable(
-              doc,
-              ctx,
-              [
-                "Region",
-                "Latest Period",
-                "Latest Sales",
-                ...getNextPeriodLabels(activePeriod, view),
-              ],
-              forecastRegionRows.map((item) => [
-                item.region,
-                item.latestPeriod,
-                formatCurrency(item.history),
-                ...item.forecast.map(formatCurrency),
-              ]),
-            );
-          } else {
-            ctx.addEmptyNote(doc, ctx, "No region forecast data available.");
-          }
-        },
-      },
     ],
     [
       totals,
@@ -848,8 +677,6 @@ export default function ReportsPage() {
       productBreakdown,
       regionBreakdown,
       recoveryRows,
-      forecastProductRows,
-      forecastRegionRows,
     ],
   );
 
@@ -992,18 +819,32 @@ export default function ReportsPage() {
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-blue-600" />
                 Sales trend by {viewUnit(view)}
+                <Badge variant="outline">
+                  Highlighted: {reportPeriodLabel}
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {periodSeries.length ? (
+              {chartPeriodSeries.length ? (
                 <div className="h-72 md:h-80">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={periodSeries}>
+                    <BarChart data={chartPeriodSeries}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                       <YAxis tick={{ fontSize: 12 }} />
                       <Tooltip />
-                      <Bar dataKey="sales" fill="#2563eb" name="Sales" />
+                      <Bar dataKey="sales" name="Sales">
+                        {chartPeriodSeries.map((entry) => (
+                          <Cell
+                            key={entry.key}
+                            fill={
+                              entry.key === activePeriod?.key
+                                ? "#1d4ed8"
+                                : "#93c5fd"
+                            }
+                          />
+                        ))}
+                      </Bar>
                       <Bar dataKey="target" fill="#94a3b8" name="Target" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -1011,6 +852,50 @@ export default function ReportsPage() {
               ) : (
                 <div className="text-sm text-gray-500">
                   No activity found for the selected period.
+                </div>
+              )}
+
+              {activePeriod && filteredTrendRows.length > 0 && (
+                <div className="mt-6 border-t border-gray-100 pt-5">
+                  <h3 className="mb-4 text-sm font-semibold text-gray-900">
+                    Detailed breakdown &mdash; {reportPeriodLabel}
+                  </h3>
+
+                  <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-lg bg-blue-50 p-3">
+                      <p className="text-xs font-medium text-blue-700">
+                        Sales Value
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-blue-900">
+                        {formatCurrency(totals.saleValue)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 p-3">
+                      <p className="text-xs font-medium text-gray-600">
+                        Target Value
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-gray-900">
+                        {formatCurrency(totals.targetValue)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Achievement {formatPct(totals.achievement)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 p-3">
+                      <p className="text-xs font-medium text-gray-600">
+                        Volume Sold
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-gray-900">
+                        {formatNumber(
+                          filteredTrendRows.reduce(
+                            (sum, row) => sum + Number(row.saleVolumeKg || 0),
+                            0,
+                          ),
+                        )}{" "}
+                        kg
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1191,98 +1076,6 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         );
-      case "forecast":
-        return (
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Card className="border-gray-200 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
-                  Forecasting by product (next 4 {viewUnit(view)}s)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {forecastProductRows.length ? (
-                  forecastProductRows.map((item) => (
-                    <div
-                      key={item.product}
-                      className="rounded-lg border border-gray-200 p-3"
-                    >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="font-semibold text-gray-900">
-                          {item.product}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Latest {item.latestPeriod}:{" "}
-                          {formatCurrency(item.history)}
-                        </p>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {item.forecast.map((value, index) => (
-                          <Badge
-                            key={`${item.product}-${index}`}
-                            variant="secondary"
-                          >
-                            {item.forecastLabels[index]}:{" "}
-                            {formatCurrency(value)}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-sm text-gray-500">
-                    No forecast history available.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-gray-200 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
-                  Forecasting by region (next 4 {viewUnit(view)}s)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {forecastRegionRows.length ? (
-                  forecastRegionRows.map((item) => (
-                    <div
-                      key={item.region}
-                      className="rounded-lg border border-gray-200 p-3"
-                    >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="font-semibold text-gray-900">
-                          {item.region}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Latest {item.latestPeriod}:{" "}
-                          {formatCurrency(item.history)}
-                        </p>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {item.forecast.map((value, index) => (
-                          <Badge
-                            key={`${item.region}-${index}`}
-                            variant="secondary"
-                          >
-                            {item.forecastLabels[index]}:{" "}
-                            {formatCurrency(value)}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-sm text-gray-500">
-                    No region forecast data available.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        );
       default:
         return null;
     }
@@ -1308,11 +1101,11 @@ export default function ReportsPage() {
                 </Badge>
               </div>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex max-w-full flex-wrap items-center gap-3">
               <Tabs
                 value={view}
                 onValueChange={setView}
-                className="w-full lg:w-auto"
+                className="w-full sm:w-auto"
               >
                 <TabsList>
                   <TabsTrigger value="monthly">Monthly</TabsTrigger>
@@ -1320,6 +1113,59 @@ export default function ReportsPage() {
                   <TabsTrigger value="yearly">Annual</TabsTrigger>
                 </TabsList>
               </Tabs>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-25">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {periodOptions.years.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {view === "monthly" && (
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger className="w-30">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableMonths.map((m) => (
+                      <SelectItem key={m} value={String(m)}>
+                        {
+                          monthLabel(
+                            `${selectedYear}-${String(m).padStart(2, "0")}`,
+                          ).split(" ")[0]
+                        }
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {view === "quarterly" && (
+                <Select
+                  value={selectedQuarter}
+                  onValueChange={setSelectedQuarter}
+                >
+                  <SelectTrigger className="w-25">
+                    <SelectValue placeholder="Quarter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableQuarters.map((q) => (
+                      <SelectItem key={q} value={String(q)}>
+                        Q{q}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button variant="outline" className="gap-2" asChild>
+                <Link href="/reports/forecasting">
+                  <TrendingUp className="h-4 w-4" />
+                  Forecasting
+                </Link>
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

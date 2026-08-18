@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   BarChart3,
-  Users,
   Box,
   MapPin,
   Target,
@@ -14,6 +13,8 @@ import {
   FolderTree,
   Shield,
   PieChart,
+  ShoppingCart,
+  UserCog,
 } from "lucide-react";
 
 export default function Sidebar({ isOpen, onToggle }) {
@@ -23,10 +24,10 @@ export default function Sidebar({ isOpen, onToggle }) {
 
   const menuItems = [
     { icon: BarChart3, label: "Dashboard", href: "/" },
-    { icon: Users, label: "Customers", href: "/customers" },
     { icon: Shield, label: "Salesmen", href: "/salesmen" },
     { icon: Box, label: "Products", href: "/products" },
     { icon: Target, label: "Targets", href: "/targets" },
+    { icon: ShoppingCart, label: "Sales", href: "/sales" },
     { icon: MapPin, label: "Regions", href: "/regions" },
     {
       icon: FolderTree,
@@ -35,6 +36,7 @@ export default function Sidebar({ isOpen, onToggle }) {
     },
     { icon: BarChart3, label: "Trends", href: "/trends" },
     { icon: PieChart, label: "Reports", href: "/reports" },
+    { icon: UserCog, label: "User Management", href: "/users" },
   ];
 
   const isActive = (href) => {
