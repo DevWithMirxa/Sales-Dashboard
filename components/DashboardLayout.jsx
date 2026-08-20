@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import Sidebar from "./Sidebar";
-import Header from "./Header";
 
 export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -15,16 +14,10 @@ export default function DashboardLayout({ children }) {
         onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-
-        {/* Main Content Area - only this scrolls */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-6">
-          {children}
-        </main>
-      </div>
+      {/* Main Content Area - only this scrolls */}
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-6">
+        {children}
+      </main>
     </div>
   );
 }

@@ -4,9 +4,11 @@ import React, { useState, useEffect } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import RegionForm from "@/components/forms/RegionForm";
-import { Plus, Trash2, Edit2, Users, Download } from "lucide-react";
+import { Plus, Trash2, Edit2, Users } from "lucide-react";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
+import { exportToPDF } from "@/lib/pdfExport";
+import DownloadButton from "@/components/DownloadButton";
 
 function Regions() {
   const [regions, setRegions] = useState([]);
@@ -70,39 +72,45 @@ function Regions() {
     return "text-red-600";
   };
 
-  const handleExport = () => {
-    exportToCSV(
-      regions,
-      [
-        { label: "Region", key: "region" },
-        { label: "Sales Team Members", value: (r) => r.salesCount || 0 },
-        {
-          label: "Sales Team Names",
-          value: (r) =>
-            (r.salesTeam || [])
-              .map((m) => m.salesperson)
-              .filter(Boolean)
-              .join(", "),
-        },
-        {
-          label: "Latest Period",
-          value: (r) => formatPeriod(r.period) || r.period || "-",
-        },
-        { label: "Monthly Sales (Rs)", value: (r) => r.monthlySales || 0 },
-        { label: "Target (Rs)", value: (r) => r.target || 0 },
-        {
-          label: "Achievement (%)",
-          value: (r) => {
-            const pct = getAchievementPercentage(
-              r.monthlySales || 0,
-              r.target || 0,
-            );
-            return pct === null ? "-" : pct;
-          },
-        },
-      ],
-      "regions",
-    );
+  const regionColumns = [
+    { label: "Region", key: "region" },
+    { label: "Sales Team Members", value: (r) => r.salesCount || 0 },
+    {
+      label: "Sales Team Names",
+      value: (r) =>
+        (r.salesTeam || [])
+          .map((m) => m.salesperson)
+          .filter(Boolean)
+          .join(", "),
+    },
+    {
+      label: "Latest Period",
+      value: (r) => formatPeriod(r.period) || r.period || "-",
+    },
+    { label: "Monthly Sales (Rs)", value: (r) => r.monthlySales || 0 },
+    { label: "Target (Rs)", value: (r) => r.target || 0 },
+    {
+      label: "Achievement (%)",
+      value: (r) => {
+        const pct = getAchievementPercentage(
+          r.monthlySales || 0,
+          r.target || 0,
+        );
+        return pct === null ? "-" : pct;
+      },
+    },
+  ];
+
+  const handleExportExcel = () => {
+    exportToCSV(regions, regionColumns, "regions");
+  };
+
+  const handleExportPDF = () => {
+    exportToPDF(regions, regionColumns, {
+      title: "Regions",
+      subtitle: "Sales team regions with performance",
+      filename: "regions",
+    });
   };
 
   return (
@@ -111,13 +119,10 @@ function Regions() {
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">Regions</h1>
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Download className="w-5 h-5" />
-              Export
-            </button>
+            <DownloadButton
+              onExcel={handleExportExcel}
+              onPdf={handleExportPDF}
+            />
             <button
               onClick={() => setShowForm(true)}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"

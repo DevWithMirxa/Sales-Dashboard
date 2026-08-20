@@ -9,7 +9,6 @@ import {
   Plus,
   Trash2,
   Edit2,
-  Download,
   Upload,
   Loader2,
   CheckCircle2,
@@ -18,6 +17,8 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
+import { exportToPDF } from "@/lib/pdfExport";
+import DownloadButton from "@/components/DownloadButton";
 
 function Sales() {
   const [sales, setSales] = useState([]);
@@ -61,29 +62,35 @@ function Sales() {
     setShowForm(true);
   };
 
-  const handleExport = () => {
-    exportToCSV(
-      sales,
-      [
-        {
-          label: "Date",
-          value: (row) =>
-            row.saleDate ? new Date(row.saleDate).toLocaleDateString() : "-",
-        },
-        { label: "Salesman", key: "salesman" },
-        { label: "Product", key: "product" },
-        { label: "Customer", key: "customer" },
-        { label: "Region", key: "region" },
-        {
-          label: "Quantity",
-          value: (row) => `${row.quantity || 0} ${row.unit || ""}`.trim(),
-        },
-        { label: "Rate", key: "rate" },
-        { label: "Total Amount", key: "totalAmount" },
-        { label: "Notes", key: "notes" },
-      ],
-      "sales",
-    );
+  const saleColumns = [
+    {
+      label: "Date",
+      value: (row) =>
+        row.saleDate ? new Date(row.saleDate).toLocaleDateString() : "-",
+    },
+    { label: "Salesman", key: "salesman" },
+    { label: "Product", key: "product" },
+    { label: "Customer", key: "customer" },
+    { label: "Region", key: "region" },
+    {
+      label: "Quantity",
+      value: (row) => `${row.quantity || 0} ${row.unit || ""}`.trim(),
+    },
+    { label: "Rate", key: "rate" },
+    { label: "Total Amount", key: "totalAmount" },
+    { label: "Notes", key: "notes" },
+  ];
+
+  const handleExportExcel = () => {
+    exportToCSV(sales, saleColumns, "sales");
+  };
+
+  const handleExportPDF = () => {
+    exportToPDF(sales, saleColumns, {
+      title: "Sales",
+      subtitle: "Sales records",
+      filename: "sales",
+    });
   };
 
   const handleCloseForm = () => {
@@ -230,13 +237,10 @@ function Sales() {
         <div className="flex flex-wrap justify-between items-center gap-4">
           <h1 className="text-3xl font-bold text-gray-900">Sales</h1>
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Download className="w-5 h-5" />
-              Export
-            </button>
+            <DownloadButton
+              onExcel={handleExportExcel}
+              onPdf={handleExportPDF}
+            />
             <input
               ref={fileInputRef}
               type="file"

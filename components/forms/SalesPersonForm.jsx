@@ -76,6 +76,30 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Regions come from the database (the Regions page / GET /regions endpoint).
+  // The hardcoded `areas` list is only a fallback in case the fetch fails.
+  const [regionOptions, setRegionOptions] = useState(areas);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get("/regions")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const fetched = (Array.isArray(data) ? data : [])
+          .map((r) => r?.region)
+          .filter((v) => typeof v === "string" && v.trim());
+        setRegionOptions((prev) => [...new Set([...prev, ...fetched])]);
+      })
+      .catch((err) => {
+        console.error("Failed to load regions:", err);
+        // Keep the hardcoded fallback list.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (initialData) {
       setFormData({
@@ -250,23 +274,33 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
 
               <div className="space-y-1.5">
                 <Label htmlFor="area">Area (Region)</Label>
-                <Select
-                  value={formData.area || ""}
-                  onValueChange={(v) =>
-                    handleChange({ target: { name: "area", value: v } })
-                  }
-                >
-                  <SelectTrigger id="area">
-                    <SelectValue placeholder="Select region" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {areas.map((area) => (
-                      <SelectItem key={area} value={area}>
-                        {area}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {(() => {
+                  const selectAreas = Array.from(
+                    new Set([
+                      ...(formData.area ? [formData.area] : []),
+                      ...regionOptions,
+                    ]),
+                  );
+                  return (
+                    <Select
+                      value={formData.area || ""}
+                      onValueChange={(v) =>
+                        handleChange({ target: { name: "area", value: v } })
+                      }
+                    >
+                      <SelectTrigger id="area">
+                        <SelectValue placeholder="Select region" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectAreas.map((area) => (
+                          <SelectItem key={area} value={area}>
+                            {area}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
               </div>
 
               <div className="space-y-1.5">

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import api from "@/lib/api";
 import {
   Dialog,
@@ -31,6 +31,22 @@ const FEED_MILL_FIELDS = [
   { name: "bagsPerMonth", label: "Bags / Month" },
 ];
 
+let contactKeySeq = 0;
+// Client-side-only key so React can track contact rows across add/remove -
+// stripped out before the payload is sent to the API.
+const nextContactKey = () => `contact-${Date.now()}-${contactKeySeq++}`;
+
+const emptyContact = (isPrimary = false) => ({
+  _key: nextContactKey(),
+  name: "",
+  designation: "",
+  department: "",
+  mobile: "",
+  landline: "",
+  email: "",
+  isPrimary,
+});
+
 /**
  * Add/Edit dialog for the Business Directory's Feed Mills.
  * (Sales Team used to be managed here too, but that's now handled on the
@@ -52,7 +68,24 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
       return acc;
     }, {});
 
+  const buildInitialContacts = () => {
+    if (initialData?.contacts?.length) {
+      return initialData.contacts.map((c) => ({
+        _key: nextContactKey(),
+        name: c.name || "",
+        designation: c.designation || "",
+        department: c.department || "",
+        mobile: c.mobile || "",
+        landline: c.landline || "",
+        email: c.email || "",
+        isPrimary: Boolean(c.isPrimary),
+      }));
+    }
+    return [emptyContact(true)];
+  };
+
   const [formData, setFormData] = useState(buildInitialState);
+  const [contacts, setContacts] = useState(buildInitialContacts);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -62,6 +95,35 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
+  };
+
+  const handleContactChange = (key, field, value) => {
+    setContacts((prev) =>
+      prev.map((c) => (c._key === key ? { ...c, [field]: value } : c)),
+    );
+  };
+
+  const handleAddContact = () => {
+    setContacts((prev) => [...prev, emptyContact(false)]);
+  };
+
+  // Removing the primary contact promotes whichever contact is now first,
+  // so there's always exactly one primary as long as contacts exist.
+  const handleRemoveContact = (key) => {
+    setContacts((prev) => {
+      const next = prev.filter((c) => c._key !== key);
+      if (next.length === 0) return next;
+      if (!next.some((c) => c.isPrimary)) {
+        next[0] = { ...next[0], isPrimary: true };
+      }
+      return next;
+    });
+  };
+
+  const handleSetPrimary = (key) => {
+    setContacts((prev) =>
+      prev.map((c) => ({ ...c, isPrimary: c._key === key })),
+    );
   };
 
   const validate = () => {
@@ -82,11 +144,27 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
 
     setSubmitting(true);
     try {
+      // Drop empty contact rows (someone clicked "Add contact" but never
+      // filled it in) and strip the client-only _key before saving.
+      const payload = {
+        ...formData,
+        contacts: contacts
+          .filter((c) =>
+            Object.entries(c).some(
+              ([field, value]) =>
+                field !== "_key" &&
+                field !== "isPrimary" &&
+                String(value || "").trim(),
+            ),
+          )
+          .map(({ _key, ...c }) => c),
+      };
+
       if (isEdit) {
         const id = initialData._id || initialData.id;
-        await api.put(`${baseUrl}/${id}`, formData);
+        await api.put(`${baseUrl}/${id}`, payload);
       } else {
-        await api.post(baseUrl, formData);
+        await api.post(baseUrl, payload);
       }
       onSuccess();
     } catch (err) {
@@ -102,7 +180,7 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit" : "Add New"} Feed Mill</DialogTitle>
           <DialogDescription>
@@ -112,7 +190,7 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {formError && (
             <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
               {formError}
@@ -154,6 +232,161 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
                 )}
               </div>
             ))}
+          </div>
+
+          {/* Contacts */}
+          <div className="space-y-3">
+            <h3 className="text-base font-semibold text-foreground">
+              Contacts
+            </h3>
+
+            <div className="space-y-4">
+              {contacts.map((contact, index) => (
+                <div
+                  key={contact._key}
+                  className="rounded-lg border border-gray-200 p-4 space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">
+                      Contact #{index + 1}
+                    </span>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
+                        <input
+                          type="radio"
+                          name="primaryContact"
+                          checked={contact.isPrimary}
+                          onChange={() => handleSetPrimary(contact._key)}
+                          className="h-4 w-4 accent-blue-600"
+                        />
+                        Primary
+                      </label>
+                      {contacts.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveContact(contact._key)}
+                          className="text-sm font-medium text-red-600 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`contact-name-${contact._key}`}>Name</Label>
+                    <Input
+                      id={`contact-name-${contact._key}`}
+                      value={contact.name}
+                      onChange={(e) =>
+                        handleContactChange(
+                          contact._key,
+                          "name",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`contact-designation-${contact._key}`}>
+                        Designation
+                      </Label>
+                      <Input
+                        id={`contact-designation-${contact._key}`}
+                        value={contact.designation}
+                        onChange={(e) =>
+                          handleContactChange(
+                            contact._key,
+                            "designation",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`contact-department-${contact._key}`}>
+                        Department
+                      </Label>
+                      <Input
+                        id={`contact-department-${contact._key}`}
+                        value={contact.department}
+                        onChange={(e) =>
+                          handleContactChange(
+                            contact._key,
+                            "department",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`contact-mobile-${contact._key}`}>
+                        Mobile
+                      </Label>
+                      <Input
+                        id={`contact-mobile-${contact._key}`}
+                        value={contact.mobile}
+                        onChange={(e) =>
+                          handleContactChange(
+                            contact._key,
+                            "mobile",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`contact-landline-${contact._key}`}>
+                        Landline
+                      </Label>
+                      <Input
+                        id={`contact-landline-${contact._key}`}
+                        value={contact.landline}
+                        onChange={(e) =>
+                          handleContactChange(
+                            contact._key,
+                            "landline",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`contact-email-${contact._key}`}>
+                        Email
+                      </Label>
+                      <Input
+                        id={`contact-email-${contact._key}`}
+                        type="email"
+                        value={contact.email}
+                        onChange={(e) =>
+                          handleContactChange(
+                            contact._key,
+                            "email",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAddContact}
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              Add contact
+            </Button>
           </div>
 
           <DialogFooter>

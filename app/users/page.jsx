@@ -10,13 +10,14 @@ import {
   Trash2,
   Edit2,
   Search,
-  Upload,
   ChevronsLeft,
   ChevronsRight,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import api from "@/lib/api";
+import { exportToPDF } from "@/lib/pdfExport";
+import DownloadButton from "@/components/DownloadButton";
 
 const STATUS_STYLES = {
   active: "bg-green-100 text-green-700",
@@ -86,6 +87,17 @@ const DATE_RANGES = {
   "90d": (date) => Date.now() - new Date(date).getTime() <= 90 * 86400000,
   year: (date) => new Date(date).getFullYear() === new Date().getFullYear(),
 };
+
+// Shared column definitions used by the PDF export (mirrors the CSV headers
+// used in downloadCSV below) so the two formats stay in sync.
+const USER_COLUMNS = [
+  { label: "Full Name", value: (u) => u.name },
+  { label: "Email", value: (u) => u.email },
+  { label: "Status", value: (u) => u.status },
+  { label: "Role", value: (u) => u.role },
+  { label: "Joined Date", value: (u) => formatDate(u.createdAt) },
+  { label: "Last Active", value: (u) => formatRelativeTime(u.lastActiveAt) },
+];
 
 function csvEscape(value) {
   const str = String(value ?? "");
@@ -275,16 +287,31 @@ function Users() {
     }
   };
 
-  const handleExport = () => {
-    const rows =
-      selectedIds.size > 0
-        ? sortedUsers.filter((u) => selectedIds.has(u._id))
-        : sortedUsers;
+  const getExportRows = () =>
+    selectedIds.size > 0
+      ? sortedUsers.filter((u) => selectedIds.has(u._id))
+      : sortedUsers;
+
+  const handleExportExcel = () => {
+    const rows = getExportRows();
     if (rows.length === 0) {
       alert("No users to export.");
       return;
     }
     downloadCSV(rows);
+  };
+
+  const handleExportPDF = () => {
+    const rows = getExportRows();
+    if (rows.length === 0) {
+      alert("No users to export.");
+      return;
+    }
+    exportToPDF(rows, USER_COLUMNS, {
+      title: "Users",
+      subtitle: "User accounts",
+      filename: "users",
+    });
   };
 
   const roles = useMemo(
@@ -498,13 +525,11 @@ function Users() {
             <option value="year">This Year</option>
           </select>
 
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <Upload className="w-4 h-4" />
-            Export
-          </button>
+          <DownloadButton
+            onExcel={handleExportExcel}
+            onPdf={handleExportPDF}
+            buttonClassName="!rounded-full"
+          />
 
           <button
             onClick={() => setShowForm(true)}

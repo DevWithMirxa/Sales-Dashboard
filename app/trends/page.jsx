@@ -5,6 +5,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
+import { exportToPDF } from "@/lib/pdfExport";
+import DownloadButton from "@/components/DownloadButton";
 import {
   useReactTable,
   getCoreRowModel,
@@ -37,7 +39,6 @@ import {
   Wallet,
   ChevronLeft,
   ChevronRight,
-  Download,
   Upload,
   Loader2,
   CheckCircle2,
@@ -406,23 +407,29 @@ function TrendsContent() {
       }));
   }, [series, selectedEntity, entityKey]);
 
-  const handleExport = () => {
-    exportToCSV(
-      rows,
-      [
-        {
-          label: view === "product" ? "Product" : "Salesperson",
-          key: entityKey,
-        },
-        { label: "Target Vol (Kg)", key: "targetVolumeKg" },
-        { label: "Sale Vol (Kg)", key: "saleVolumeKg" },
-        { label: "Volume Achievement (%)", key: "volumeAchievementPct" },
-        { label: "Target Value (Rs)", key: "targetValueRs" },
-        { label: "Sale Value (Rs)", key: "saleValueRs" },
-        { label: "Value Achievement (%)", key: "valueAchievementPct" },
-      ],
-      `trends-${view}`,
-    );
+  const trendColumns = [
+    {
+      label: view === "product" ? "Product" : "Salesperson",
+      key: entityKey,
+    },
+    { label: "Target Vol (Kg)", key: "targetVolumeKg" },
+    { label: "Sale Vol (Kg)", key: "saleVolumeKg" },
+    { label: "Volume Achievement (%)", key: "volumeAchievementPct" },
+    { label: "Target Value (Rs)", key: "targetValueRs" },
+    { label: "Sale Value (Rs)", key: "saleValueRs" },
+    { label: "Value Achievement (%)", key: "valueAchievementPct" },
+  ];
+
+  const handleExportExcel = () => {
+    exportToCSV(rows, trendColumns, `trends-${view}`);
+  };
+
+  const handleExportPDF = () => {
+    exportToPDF(rows, trendColumns, {
+      title: "Trends",
+      subtitle: `${view === "product" ? "By Product" : "By Salesperson"}`,
+      filename: `trends-${view}`,
+    });
   };
 
   return (
@@ -430,14 +437,11 @@ function TrendsContent() {
       <div className="flex flex-wrap justify-between items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Trends</h1>
         <div className="flex flex-wrap gap-3 items-center">
-          <Button
-            variant="outline"
-            onClick={handleExport}
+          <DownloadButton
+            onExcel={handleExportExcel}
+            onPdf={handleExportPDF}
             disabled={!rows.length}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
+          />
           <input
             ref={fileInputRef}
             type="file"

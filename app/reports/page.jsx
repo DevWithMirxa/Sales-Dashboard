@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
+import { exportToCSV } from "@/lib/csvExport";
 import {
   BarChart,
   Bar,
@@ -24,6 +25,7 @@ import {
   TrendingUp,
   UserRound,
   Wallet,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +58,18 @@ const formatNumber = (value) =>
 
 const formatPct = (value) =>
   typeof value === "number" ? `${value.toFixed(1)}%` : "0.0%";
+
+// Shared columns for the all-in-one Excel export of the Reports page.
+const REPORT_EXPORT_COLUMNS = [
+  { label: "Section", key: "section" },
+  { label: "Name", key: "name" },
+  { label: "Period", key: "period" },
+  { label: "Sale (Rs)", value: (r) => r.saleValue ?? "" },
+  { label: "Target (Rs)", value: (r) => r.targetValue ?? "" },
+  { label: "Volume (kg)", value: (r) => r.volume ?? "" },
+  { label: "Recovery (Rs)", value: (r) => r.recoveryAmount ?? "" },
+  { label: "Ach (%)", value: (r) => r.achievement ?? r.valueAchievement ?? "" },
+];
 
 const monthLabel = (period) => {
   const [year, month] = period.split("-");
@@ -772,6 +786,81 @@ export default function ReportsPage() {
     doc.save(`sales-${fileSlug}-${dateSlug}.pdf`);
   };
 
+  // Flatten every report section into a single Excel (CSV) download that uses
+  // the same API-derived data as the PDF reports.
+  const generateExcel = () => {
+    const volumeSold = filteredTrendRows.reduce(
+      (sum, row) => sum + Number(row.saleVolumeKg || 0),
+      0,
+    );
+
+    const rows = [
+      {
+        section: "Summary",
+        name: "Sales Value",
+        period: reportPeriodLabel,
+        saleValue: totals.saleValue,
+      },
+      {
+        section: "Summary",
+        name: "Target Value",
+        period: reportPeriodLabel,
+        targetValue: totals.targetValue,
+      },
+      {
+        section: "Summary",
+        name: "Achievement",
+        period: reportPeriodLabel,
+        achievement: totals.achievement,
+      },
+      {
+        section: "Summary",
+        name: "Recovery",
+        period: reportPeriodLabel,
+        recoveryAmount: totals.recoveryAmount,
+      },
+      {
+        section: "Summary",
+        name: "Volume Sold",
+        period: reportPeriodLabel,
+        volume: volumeSold,
+      },
+      ...salespersonReport.map((r) => ({
+        section: "Salesperson",
+        name: r.salesperson,
+        period: reportPeriodLabel,
+        saleValue: r.saleValue,
+        targetValue: r.targetValue,
+        volume: r.saleVolume,
+        achievement: r.valueAchievement,
+      })),
+      ...productBreakdown.map((r) => ({
+        section: "Product",
+        name: r.product,
+        period: reportPeriodLabel,
+        saleValue: r.saleValue,
+        targetValue: r.targetValue,
+        volume: r.volume,
+      })),
+      ...regionBreakdown.map((r) => ({
+        section: "Region",
+        name: r.region,
+        period: reportPeriodLabel,
+        saleValue: r.saleValue,
+        targetValue: r.targetValue,
+        volume: r.volume,
+      })),
+      ...recoveryRows.map((r) => ({
+        section: "Recovery",
+        name: r.salesperson,
+        period: reportPeriodLabel,
+        recoveryAmount: r.recoveryAmount,
+      })),
+    ];
+
+    exportToCSV(rows, REPORT_EXPORT_COLUMNS, "sales-reports");
+  };
+
   const selectedReport =
     reportSections.find((section) => section.id === selectedReportId) ||
     reportSections[0];
@@ -1178,6 +1267,14 @@ export default function ReportsPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuItem
+                    onClick={generateExcel}
+                    className="gap-2 font-semibold"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                    Export all reports (Excel)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => generatePdf("all")}
                     className="font-semibold"

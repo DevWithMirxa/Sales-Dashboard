@@ -16,8 +16,12 @@ const getFeedMills = async (req, res) => {
       const regex = new RegExp(search, "i");
       match.$or = [
         { feedMillName: regex },
-        { millOwner: regex },
         { districtRegion: regex },
+        // Contacts replaced "Mill Owner" as the source of the person's
+        // name/role at a mill - match across the whole contacts array.
+        { "contacts.name": regex },
+        { "contacts.designation": regex },
+        { "contacts.department": regex },
       ];
     }
 

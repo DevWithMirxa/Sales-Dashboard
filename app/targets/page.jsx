@@ -10,7 +10,6 @@ import {
   Trash2,
   Edit2,
   Package,
-  Download,
   Upload,
   Loader2,
   CheckCircle2,
@@ -19,6 +18,8 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
+import { exportToPDF } from "@/lib/pdfExport";
+import DownloadButton from "@/components/DownloadButton";
 
 function Targets() {
   const [targets, setTargets] = useState([]);
@@ -224,32 +225,38 @@ function Targets() {
     },
   ];
 
-  const handleExport = () => {
-    exportToCSV(
-      targets,
-      [
-        { label: "Salesman", value: (t) => t.assignedTo?.name || "Unassigned" },
-        { label: "Target Name", key: "targetName" },
-        { label: "Period", key: "period" },
-        {
-          label: "Region",
-          value: (t) => t.region || t.assignedTo?.area || "-",
-        },
-        { label: "Status", value: (t) => getStatusConfig(t.status).label },
-        { label: "Products", value: (t) => t.products?.length || 0 },
-        {
-          label: "Total Quantity",
-          value: (t) =>
-            t.totalQuantity || calculateTotalQuantity(t.products || []),
-        },
-        {
-          label: "Total Revenue (Rs)",
-          value: (t) =>
-            t.totalRevenue || calculateTotalRevenue(t.products || []),
-        },
-      ],
-      "sales-targets",
-    );
+  const targetColumns = [
+    { label: "Salesman", value: (t) => t.assignedTo?.name || "Unassigned" },
+    { label: "Target Name", key: "targetName" },
+    { label: "Period", key: "period" },
+    {
+      label: "Region",
+      value: (t) => t.region || t.assignedTo?.area || "-",
+    },
+    { label: "Status", value: (t) => getStatusConfig(t.status).label },
+    { label: "Products", value: (t) => t.products?.length || 0 },
+    {
+      label: "Total Quantity",
+      value: (t) =>
+        t.totalQuantity || calculateTotalQuantity(t.products || []),
+    },
+    {
+      label: "Total Revenue (Rs)",
+      value: (t) =>
+        t.totalRevenue || calculateTotalRevenue(t.products || []),
+    },
+  ];
+
+  const handleExportExcel = () => {
+    exportToCSV(targets, targetColumns, "sales-targets");
+  };
+
+  const handleExportPDF = () => {
+    exportToPDF(targets, targetColumns, {
+      title: "Sales Targets",
+      subtitle: "Target assignments",
+      filename: "sales-targets",
+    });
   };
 
   return (
@@ -258,13 +265,10 @@ function Targets() {
         <div className="flex flex-wrap justify-between items-center gap-4">
           <h1 className="text-3xl font-bold text-gray-900">Sales Targets</h1>
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Download className="w-5 h-5" />
-              Export
-            </button>
+            <DownloadButton
+              onExcel={handleExportExcel}
+              onPdf={handleExportPDF}
+            />
             <input
               ref={fileInputRef}
               type="file"
@@ -430,7 +434,7 @@ function Targets() {
 
                       {/* Footer Summary */}
                       <div className="px-6 py-4 bg-gray-100 border-t border-gray-200 flex justify-between items-center">
-                        <div className="text-sm font-semibold text-gray-900">
+                        <div className="ml-24 text-sm font-semibold text-gray-900">
                           Total Quantity:{" "}
                           {(
                             target.totalQuantity ||
@@ -438,7 +442,7 @@ function Targets() {
                           ).toLocaleString()}{" "}
                           {target.products[0]?.unit}
                         </div>
-                        <div className="text-lg font-bold text-blue-600">
+                        <div className="mx-auto text-lg font-bold text-blue-600">
                           Total Revenue: Rs.{" "}
                           {(
                             target.totalRevenue ||

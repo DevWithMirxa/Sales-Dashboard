@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import {
   BarChart,
   Bar,
@@ -27,10 +33,23 @@ import SalesPersonForm from "@/components/forms/SalesPersonForm";
 import RegionForm from "@/components/forms/RegionForm";
 import ProductForm from "@/components/forms/ProductForm";
 import api from "@/lib/api";
-import { Download } from "lucide-react";
+import { Download, ChevronDown, FileSpreadsheet, FileText } from "lucide-react";
 import { exportToCSV } from "@/lib/csvExport";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const COLORS = ["#0066cc", "#00b4d8", "#90e0ef", "#caf0f8"];
+
+// Shared column definitions for both the Excel (CSV) and PDF export, so the
+// two formats always stay in sync with each other.
+const EXPORT_COLUMNS = [
+  { label: "Section", key: "section" },
+  { label: "Name / Period", key: "name" },
+  { label: "Region", key: "region" },
+  { label: "Sales (Rs)", key: "sales" },
+  { label: "Target (Rs)", key: "target" },
+  { label: "Volume (MT)", key: "volume" },
+];
 
 function Dashboard() {
   const [filters, setFilters] = useState({
@@ -75,6 +94,23 @@ function Dashboard() {
     data: [],
     products: [],
   });
+
+  // Download dropdown (Excel / PDF)
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
+  const downloadMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        downloadMenuRef.current &&
+        !downloadMenuRef.current.contains(e.target)
+      ) {
+        setDownloadMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const buildQuery = useCallback((f, breakdown) => {
     const params = new URLSearchParams();
@@ -183,9 +219,10 @@ function Dashboard() {
     setActiveForm(null);
   };
 
-  // Export the currently-loaded dashboard data as a single CSV combining the
-  // sale breakdown, region sales, top products, and top salesmen tables.
-  const handleExport = () => {
+  // Builds the same flat row set (Sale Breakdown + Region Sales + Top
+  // Products + Top Salesmen) used by BOTH the Excel and PDF export, so the
+  // two formats can never drift apart from each other.
+  const buildExportRows = useCallback(() => {
     const rows = [];
 
     (trendSeries || []).forEach((t) =>
@@ -229,18 +266,58 @@ function Dashboard() {
       }),
     );
 
-    exportToCSV(
-      rows,
-      [
-        { label: "Section", key: "section" },
-        { label: "Name / Period", key: "name" },
-        { label: "Region", key: "region" },
-        { label: "Sales (Rs)", key: "sales" },
-        { label: "Target (Rs)", key: "target" },
-        { label: "Volume (MT)", key: "volume" },
-      ],
-      "sales-dashboard",
-    );
+    return rows;
+  }, [trendSeries, regionSales, topProducts, summary.topSalesmen]);
+
+  const handleExportExcel = () => {
+    exportToCSV(buildExportRows(), EXPORT_COLUMNS, "sales-dashboard");
+    setDownloadMenuOpen(false);
+  };
+
+  const handleExportPDF = () => {
+    const rows = buildExportRows();
+    const doc = new jsPDF({ orientation: "landscape" });
+
+    doc.setFontSize(16);
+    doc.setTextColor(0, 102, 204);
+    doc.text("Sales Dashboard", 14, 16);
+
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    const filterLine = [
+      breakdown.year && breakdown.year !== "all"
+        ? `Year: ${breakdown.year}`
+        : "Year: All",
+      `Breakdown: ${breakdown.granularity}`,
+      filters.region !== "all" ? `Region: ${filters.region}` : null,
+      filters.product !== "all" ? `Product: ${filters.product}` : null,
+      filters.salesperson !== "all"
+        ? `Salesperson: ${filters.salesperson}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("  |  ");
+    doc.text(filterLine, 14, 22);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 27);
+
+    autoTable(doc, {
+      startY: 32,
+      head: [EXPORT_COLUMNS.map((c) => c.label)],
+      body: rows.map((row) =>
+        EXPORT_COLUMNS.map((c) => {
+          const val = row[c.key];
+          return val === undefined || val === null || val === ""
+            ? "-"
+            : String(val);
+        }),
+      ),
+      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: [0, 102, 204], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+    });
+
+    doc.save("sales-dashboard.pdf");
+    setDownloadMenuOpen(false);
   };
 
   const recentSalesColumns = useMemo(
@@ -260,15 +337,15 @@ function Dashboard() {
         cell: ({ getValue }) => {
           const val = getValue();
           return val >= 1000000
-            ? `Rs ${(val / 1000000).toFixed(2)}M`
-            : `Rs ${(val / 1000).toFixed(0)}K`;
+            ? `${(val / 1000000).toFixed(2)}M`
+            : `${(val / 1000).toFixed(0)}K`;
         },
         meta: { cellClassName: "font-medium text-gray-900" },
       },
       {
         accessorKey: "mt",
         header: "Volume (MT)",
-        cell: ({ getValue }) => `${getValue()} MT`,
+        cell: ({ getValue }) => `${getValue()}`,
       },
       {
         id: "status",
@@ -294,13 +371,39 @@ function Dashboard() {
               Sales Dashboard
             </h1>
             <div className="flex items-center gap-4">
-              <button
-                onClick={handleExport}
-                className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
+              <div className="relative" ref={downloadMenuRef}>
+                <button
+                  onClick={() => setDownloadMenuOpen((v) => !v)}
+                  className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform ${
+                      downloadMenuOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {downloadMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden">
+                    <button
+                      onClick={handleExportExcel}
+                      className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                      Download Excel
+                    </button>
+                    <button
+                      onClick={handleExportPDF}
+                      className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 border-t border-gray-100"
+                    >
+                      <FileText className="w-4 h-4 text-red-600" />
+                      Download PDF
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="text-sm text-gray-600">
                 Last updated: {new Date().toLocaleDateString()}
               </div>
@@ -331,20 +434,20 @@ function Dashboard() {
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <KPICard
-                title={`Sale / ${periodUnit} (Rs)`}
-                value={`Rs ${(summary.totalSaleRs / 1000000).toFixed(2)}M`}
+                title={`Sale/${periodUnit} (Rs)`}
+                value={`${(summary.totalSaleRs / 1000000).toFixed(2)} M`}
               />
               <KPICard
-                title={`Sale / ${periodUnit} (MT)`}
-                value={`${summary.totalSaleMT} MT`}
+                title={`Sale/${periodUnit} (MT)`}
+                value={`${summary.totalSaleMT}`}
               />
               <KPICard
-                title={`Target / ${periodUnit} (Rs)`}
-                value={`Rs ${(summary.totalTargetRs / 1000000).toFixed(2)}M`}
+                title={`Target/${periodUnit} (Rs)`}
+                value={`${(summary.totalTargetRs / 1000000).toFixed(2)} M`}
               />
               <KPICard
                 title="% Target Achievement"
-                value={`${summary.targetAchievement}%`}
+                value={`${summary.targetAchievement}`}
               />
               <KPICard
                 title="Active Regions"
@@ -355,10 +458,10 @@ function Dashboard() {
                 }
               />
               <KPICard
-                title="Recovery"
+                title="Recovery (Rs)"
                 value={
                   summary.recovery !== undefined
-                    ? `Rs ${(summary.recovery / 1000000).toFixed(2)}M`
+                    ? `${(summary.recovery / 1000000).toFixed(2)} M`
                     : "0"
                 }
               />
@@ -389,7 +492,29 @@ function Dashboard() {
                     <XAxis
                       dataKey="label"
                       stroke="#6b7280"
-                      interval={breakdown.granularity === "month" ? 2 : 0}
+                      interval={0}
+                      tickFormatter={(v) => {
+                        const label = String(v);
+                        const isAllYearsMonth =
+                          breakdown.granularity === "month" &&
+                          (!breakdown.year || breakdown.year === "all");
+                        // Monthly + All Years: label only the starting month of each
+                        // year ("Jan 2024", "Jan 2025"...) so it's clear where each
+                        // new year begins. Other months get an empty label.
+                        if (isAllYearsMonth) {
+                          const [month] = label.split(" ");
+                          return (month || "").toLowerCase() === "jan"
+                            ? label
+                            : "";
+                        }
+                        // Monthly + a single year selected: show just the month name
+                        // (e.g. "Jan"), not "Jan 2024".
+                        if (breakdown.granularity === "month") {
+                          return label.split(" ")[0] || label;
+                        }
+                        // Quarters / years keep their full label.
+                        return label;
+                      }}
                     />
                     <YAxis
                       stroke="#6b7280"
@@ -434,7 +559,16 @@ function Dashboard() {
                     <BarChart data={regionSales}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis dataKey="region" stroke="#6b7280" />
-                      <YAxis stroke="#6b7280" />
+                      <YAxis
+                        stroke="#6b7280"
+                        width={90}
+                        tickFormatter={(v) =>
+                          v >= 1000000
+                            ? `${(v / 1000000).toFixed(1)}M`
+                            : `${(v / 1000).toFixed(0)}K`
+                        }
+                        tick={{ fontSize: 11 }}
+                      />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: "#fff",
@@ -460,8 +594,8 @@ function Dashboard() {
                 onFormOpen={() => setActiveForm("product")}
               >
                 {topProducts.length > 0 ? (
-                  <div className="flex gap-8">
-                    <ResponsiveContainer width="50%" height={300}>
+                  <div className="flex flex-col gap-4">
+                    <ResponsiveContainer width="100%" height={250}>
                       <PieChart>
                         <Pie
                           data={topProducts}
@@ -471,7 +605,8 @@ function Dashboard() {
                           label={({ name, percent }) =>
                             `${name} ${(percent * 100).toFixed(0)}%`
                           }
-                          outerRadius={80}
+                          fontSize={"15px"}
+                          outerRadius="58%"
                           fill="#8884d8"
                           dataKey="sales"
                         >
@@ -485,11 +620,11 @@ function Dashboard() {
                         <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
-                    <div className="flex-1 flex flex-col justify-center space-y-4">
+                    <div className="flex flex-wrap gap-4 justify-center">
                       {topProducts.map((product, index) => (
                         <div
                           key={product.id || product.name}
-                          className="flex items-center gap-3"
+                          className="flex items-center gap-2"
                         >
                           <div
                             className="w-3 h-3 rounded-full"
@@ -497,7 +632,7 @@ function Dashboard() {
                               backgroundColor: COLORS[index % COLORS.length],
                             }}
                           />
-                          <div className="flex-1">
+                          <div className="flex flex-col">
                             <p className="text-sm font-medium text-gray-900">
                               {product.name}
                             </p>

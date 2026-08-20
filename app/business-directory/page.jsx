@@ -11,6 +11,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
+import { exportToPDF } from "@/lib/pdfExport";
+import DownloadButton from "@/components/DownloadButton";
 import DirectoryForm from "@/components/forms/DirectoryForm";
 import axios from "axios";
 import {
@@ -27,7 +29,6 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
-  Download,
   ChevronDown,
   Search,
   Factory,
@@ -35,6 +36,8 @@ import {
   Phone,
   Mail,
   Package,
+  User,
+  Star,
   Plus,
   Edit,
   Trash2,
@@ -76,6 +79,15 @@ import { cn } from "@/lib/utils";
 const showValue = (v) => (v === null || v === undefined || v === "" ? "-" : v);
 const hasValue = (v) =>
   v !== null && v !== undefined && String(v).trim() !== "";
+
+// The primary contact, falling back to the first contact if none is
+// flagged primary (shouldn't normally happen - the form always keeps one
+// contact marked primary - but this keeps the table from showing nothing).
+const getPrimaryContact = (row) => {
+  const contacts = row?.contacts || [];
+  if (!contacts.length) return null;
+  return contacts.find((c) => c.isPrimary) || contacts[0];
+};
 
 const columnHelper = createColumnHelper();
 
@@ -266,11 +278,12 @@ function BusinessDirectoryContent() {
       columnHelper.accessor("feedMillName", {
         header: "Feed Mill",
         meta: {
-          headerClassName: "w-[25%] min-w-[200px]",
-          cellClassName: "w-[25%] min-w-[200px]",
+          headerClassName: "w-[30%] min-w-[220px]",
+          cellClassName: "w-[30%] min-w-[220px]",
         },
         cell: (info) => {
           const row = info.row.original;
+          const primaryContact = getPrimaryContact(row);
           return (
             <div className="min-w-0 space-y-1">
               <div className="whitespace-normal word-break-words font-medium leading-snug text-foreground">
@@ -282,8 +295,16 @@ function BusinessDirectoryContent() {
                     {row.districtRegion}
                   </Badge>
                 )}
-                {hasValue(row.millOwner) && (
-                  <span className="truncate">Owner: {row.millOwner}</span>
+                {primaryContact && hasValue(primaryContact.name) && (
+                  <span className="truncate">
+                    {primaryContact.name}
+                    {hasValue(primaryContact.designation) &&
+                      ` (${primaryContact.designation}${
+                        hasValue(primaryContact.department)
+                          ? ` - ${primaryContact.department}`
+                          : ""
+                      })`}
+                  </span>
                 )}
               </div>
             </div>
@@ -293,8 +314,8 @@ function BusinessDirectoryContent() {
       columnHelper.accessor("millAddress", {
         header: "Address",
         meta: {
-          headerClassName: "w-[28%] min-w-[240px]",
-          cellClassName: "w-[28%] min-w-[240px]",
+          headerClassName: "w-[34%] min-w-[260px]",
+          cellClassName: "w-[34%] min-w-[260px]",
         },
         cell: (info) => (
           <div className="line-clamp-2 whitespace-normal word-break-words text-sm leading-relaxed text-muted-foreground">
@@ -305,8 +326,8 @@ function BusinessDirectoryContent() {
       columnHelper.accessor("millPhones", {
         header: "Contact",
         meta: {
-          headerClassName: "hidden lg:table-cell w-[15%]",
-          cellClassName: "hidden lg:table-cell w-[15%]",
+          headerClassName: "hidden lg:table-cell w-[18%]",
+          cellClassName: "hidden lg:table-cell w-[18%]",
         },
         cell: (info) => {
           const row = info.row.original;
@@ -327,8 +348,8 @@ function BusinessDirectoryContent() {
       columnHelper.accessor("productionCapacity", {
         header: "Capacity",
         meta: {
-          headerClassName: "hidden xl:table-cell w-[15%]",
-          cellClassName: "hidden xl:table-cell w-[15%]",
+          headerClassName: "hidden xl:table-cell w-[18%]",
+          cellClassName: "hidden xl:table-cell w-[18%]",
         },
         cell: (info) => {
           const row = info.row.original;
@@ -364,10 +385,6 @@ function BusinessDirectoryContent() {
         id: "actions",
         header: "",
         enableSorting: false,
-        meta: {
-          headerClassName: "w-24",
-          cellClassName: "w-24",
-        },
         cell: ({ row }) => {
           const record = row.original;
           const recordId = record._id || record.id;
@@ -427,66 +444,158 @@ function BusinessDirectoryContent() {
     setExpandedId((prev) => (prev === rowId ? null : rowId));
   };
 
-  const renderFeedMillDetails = (row) => (
-    <TableRow className="bg-muted/30 hover:bg-muted/30">
-      <TableCell
-        colSpan={columns.length}
-        className="px-5 py-4 whitespace-normal"
-      >
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-          <DetailItem
-            icon={MapPin}
-            label="Mill Address"
-            value={row.millAddress}
-          />
-          <DetailItem
-            icon={MapPin}
-            label="Office Address"
-            value={row.officeAddress}
-          />
-          <DetailItem
-            icon={Phone}
-            label="Mill Phone(s)"
-            value={row.millPhones}
-          />
-          <DetailItem
-            icon={Phone}
-            label="Office Phone(s)"
-            value={row.officePhones}
-          />
-          <DetailItem icon={Mail} label="Email" value={row.email} />
-          <DetailItem
-            icon={Package}
-            label="Production"
-            value={[
-              row.productionCapacity && `Capacity: ${row.productionCapacity}`,
-              row.bagsPerMonth && `Bags/month: ${row.bagsPerMonth}`,
-            ]
-              .filter(Boolean)
-              .join(" | ")}
-          />
-        </div>
-      </TableCell>
-    </TableRow>
-  );
+  const renderFeedMillDetails = (row) => {
+    const contacts = row.contacts || [];
+    return (
+      <TableRow className="bg-muted/30 hover:bg-muted/30">
+        <TableCell
+          colSpan={columns.length}
+          className="px-5 py-4 whitespace-normal"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+              <DetailItem
+                icon={User}
+                label="Mill Owner"
+                value={row.millOwner}
+              />
+              <DetailItem
+                icon={MapPin}
+                label="Mill Address"
+                value={row.millAddress}
+              />
+              <DetailItem
+                icon={MapPin}
+                label="Office Address"
+                value={row.officeAddress}
+              />
+              <DetailItem
+                icon={Phone}
+                label="Mill Phone(s)"
+                value={row.millPhones}
+              />
+              <DetailItem
+                icon={Phone}
+                label="Office Phone(s)"
+                value={row.officePhones}
+              />
+              <DetailItem icon={Mail} label="Email" value={row.email} />
+              <DetailItem
+                icon={Package}
+                label="Production"
+                value={[
+                  row.productionCapacity &&
+                    `Capacity: ${row.productionCapacity}`,
+                  row.bagsPerMonth && `Bags/month: ${row.bagsPerMonth}`,
+                ]
+                  .filter(Boolean)
+                  .join(" | ")}
+              />
+            </div>
 
-  const handleExport = () => {
-    exportToCSV(
-      rows,
-      [
-        { label: "Feed Mill", key: "feedMillName" },
-        { label: "District/Region", key: "districtRegion" },
-        { label: "Owner", key: "millOwner" },
-        { label: "Mill Address", key: "millAddress" },
-        { label: "Office Address", key: "officeAddress" },
-        { label: "Mill Phones", key: "millPhones" },
-        { label: "Office Phones", key: "officePhones" },
-        { label: "Email", key: "email" },
-        { label: "Production Capacity", key: "productionCapacity" },
-        { label: "Bags Per Month", key: "bagsPerMonth" },
-      ],
-      "business-directory",
+            {contacts.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
+                  <User className="h-3.5 w-3.5" />
+                  Contacts ({contacts.length})
+                </div>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                  {contacts.map((contact, idx) => (
+                    <div
+                      key={contact._id || idx}
+                      className="min-w-0 rounded-md border bg-background p-3"
+                    >
+                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-medium text-foreground">
+                          {showValue(contact.name)}
+                        </span>
+                        {contact.isPrimary && (
+                          <Badge className="shrink-0 gap-1 bg-blue-100 text-blue-700 hover:bg-blue-100">
+                            <Star className="h-3 w-3 fill-current" />
+                            Primary
+                          </Badge>
+                        )}
+                      </div>
+                      {(hasValue(contact.designation) ||
+                        hasValue(contact.department)) && (
+                        <div className="mb-1.5 text-xs text-muted-foreground">
+                          {[contact.designation, contact.department]
+                            .filter(hasValue)
+                            .join(" - ")}
+                        </div>
+                      )}
+                      <div className="space-y-0.5 text-xs text-foreground">
+                        {hasValue(contact.mobile) && (
+                          <div className="truncate">
+                            Mobile: {contact.mobile}
+                          </div>
+                        )}
+                        {hasValue(contact.landline) && (
+                          <div className="truncate">
+                            Landline: {contact.landline}
+                          </div>
+                        )}
+                        {hasValue(contact.email) && (
+                          <div className="truncate">{contact.email}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
     );
+  };
+
+  const directoryColumns = [
+    { label: "Feed Mill", key: "feedMillName" },
+    { label: "District/Region", key: "districtRegion" },
+    {
+      label: "Primary Contact",
+      value: (row) => getPrimaryContact(row)?.name || "",
+    },
+    {
+      label: "Designation",
+      value: (row) => getPrimaryContact(row)?.designation || "",
+    },
+    {
+      label: "Department",
+      value: (row) => getPrimaryContact(row)?.department || "",
+    },
+    {
+      label: "Contact Mobile",
+      value: (row) => getPrimaryContact(row)?.mobile || "",
+    },
+    {
+      label: "Contact Landline",
+      value: (row) => getPrimaryContact(row)?.landline || "",
+    },
+    {
+      label: "Contact Email",
+      value: (row) => getPrimaryContact(row)?.email || "",
+    },
+    { label: "Mill Address", key: "millAddress" },
+    { label: "Office Address", key: "officeAddress" },
+    { label: "Mill Phones", key: "millPhones" },
+    { label: "Office Phones", key: "officePhones" },
+    { label: "Mill Email", key: "email" },
+    { label: "Production Capacity", key: "productionCapacity" },
+    { label: "Bags Per Month", key: "bagsPerMonth" },
+  ];
+
+  const handleExportExcel = () => {
+    exportToCSV(rows, directoryColumns, "business-directory");
+  };
+
+  const handleExportPDF = () => {
+    exportToPDF(rows, directoryColumns, {
+      title: "Business Directory",
+      subtitle: "Feed mill business directory",
+      filename: "business-directory",
+    });
   };
 
   return (
@@ -498,10 +607,10 @@ function BusinessDirectoryContent() {
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" onClick={handleExport}>
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
+          <DownloadButton
+            onExcel={handleExportExcel}
+            onPdf={handleExportPDF}
+          />
           <input
             ref={fileInputRef}
             type="file"
@@ -574,7 +683,7 @@ function BusinessDirectoryContent() {
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search name, owner, district..."
+                  placeholder="Search feed mill, contact, district..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-8 w-64"

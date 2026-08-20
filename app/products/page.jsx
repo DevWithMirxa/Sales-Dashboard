@@ -9,7 +9,6 @@ import {
   Plus,
   Trash2,
   Edit2,
-  Download,
   Upload,
   Loader2,
   CheckCircle2,
@@ -18,6 +17,8 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
+import { exportToPDF } from "@/lib/pdfExport";
+import DownloadButton from "@/components/DownloadButton";
 
 function Products() {
   const [products, setProducts] = useState([]);
@@ -61,17 +62,23 @@ function Products() {
     setShowForm(true);
   };
 
-  const handleExport = () => {
-    exportToCSV(
-      products,
-      [
-        { label: "Product Name", key: "name" },
-        { label: "Price (Rs/Kg)", key: "pricePerKg" },
-        { label: "Packing Size (Kg)", key: "packingKg" },
-        { label: "Status", key: "status" },
-      ],
-      "products",
-    );
+  const productColumns = [
+    { label: "Product Name", key: "name" },
+    { label: "Price (Rs/Kg)", key: "pricePerKg" },
+    { label: "Packing Size (Kg)", key: "packingKg" },
+    { label: "Status", key: "status" },
+  ];
+
+  const handleExportExcel = () => {
+    exportToCSV(products, productColumns, "products");
+  };
+
+  const handleExportPDF = () => {
+    exportToPDF(products, productColumns, {
+      title: "Products",
+      subtitle: "Product catalogue",
+      filename: "products",
+    });
   };
 
   const handleCloseForm = () => {
@@ -174,13 +181,10 @@ function Products() {
         <div className="flex flex-wrap justify-between items-center gap-4">
           <h1 className="text-3xl font-bold text-gray-900">Products</h1>
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Download className="w-5 h-5" />
-              Export
-            </button>
+            <DownloadButton
+              onExcel={handleExportExcel}
+              onPdf={handleExportPDF}
+            />
             <input
               ref={fileInputRef}
               type="file"

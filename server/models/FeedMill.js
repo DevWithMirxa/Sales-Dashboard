@@ -1,5 +1,21 @@
 const mongoose = require("mongoose");
 
+// One person on-site at a feed mill. A mill can have several contacts
+// (e.g. owner, purchase manager, accountant) - exactly one should be
+// flagged isPrimary at a time, enforced on the frontend form.
+const contactSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true },
+    designation: { type: String, trim: true },
+    department: { type: String, trim: true },
+    mobile: { type: String, trim: true },
+    landline: { type: String, trim: true },
+    email: { type: String, trim: true },
+    isPrimary: { type: Boolean, default: false },
+  },
+  { _id: false },
+);
+
 const feedMillSchema = new mongoose.Schema(
   {
     srNo: { type: Number },
@@ -13,6 +29,7 @@ const feedMillSchema = new mongoose.Schema(
     email: { type: String, trim: true, default: null },
     productionCapacity: { type: String, trim: true, default: null },
     bagsPerMonth: { type: String, trim: true, default: null },
+    contacts: { type: [contactSchema], default: [] },
   },
   { timestamps: true },
 );

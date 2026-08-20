@@ -5,7 +5,9 @@ import Link from "next/link";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
-import { ArrowLeft, Download, TrendingUp } from "lucide-react";
+import { exportToCSV } from "@/lib/csvExport";
+import DownloadButton from "@/components/DownloadButton";
+import { ArrowLeft, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -545,6 +547,41 @@ function Forecasting() {
     doc.save(`sales-forecasting-${dateSlug}.pdf`);
   };
 
+  // Excel (CSV) export that flattens the product + region forecast tables into
+  // a single sheet, keeping the labels in sync with the PDF report.
+  const handleExportExcel = () => {
+    const nextLabels = getNextPeriodLabels(anchorPeriod, view, horizon);
+    const columns = [
+      { label: "Section", key: "section" },
+      { label: "Product / Region", key: "entity" },
+      { label: "Anchor Period", key: "latestPeriod" },
+      { label: "Anchor Sales (Rs)", key: "history" },
+      ...nextLabels.map((label, i) => ({
+        label,
+        value: (r) => r.forecast[i] ?? "",
+      })),
+    ];
+
+    const rows = [
+      ...forecastProductRows.map((p) => ({
+        section: "By Product",
+        entity: p.product,
+        latestPeriod: p.latestPeriod,
+        history: p.history,
+        forecast: p.forecast,
+      })),
+      ...forecastRegionRows.map((r) => ({
+        section: "By Region",
+        entity: r.region,
+        latestPeriod: r.latestPeriod,
+        history: r.history,
+        forecast: r.forecast,
+      })),
+    ];
+
+    exportToCSV(rows, columns, "sales-forecasting");
+  };
+
   return (
     <ProtectedRoute>
       <DashboardLayout>
@@ -654,14 +691,13 @@ function Forecasting() {
                 </SelectContent>
               </Select>
 
-              <Button
+              <DownloadButton
+                variant="solid"
+                label="Download"
+                onExcel={handleExportExcel}
+                onPdf={generatePdf}
                 disabled={loading || !trendRows.length}
-                onClick={generatePdf}
-                className="gap-2 bg-blue-600 hover:bg-blue-700"
-              >
-                <Download className="h-4 w-4" />
-                Download as PDF
-              </Button>
+              />
             </div>
           </div>
 
