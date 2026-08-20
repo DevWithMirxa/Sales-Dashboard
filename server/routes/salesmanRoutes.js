@@ -7,6 +7,7 @@ const {
   updateSalesman,
   deleteSalesman,
   uploadSalesmen,
+  downloadSalesmenTemplate,
 } = require("../controllers/salesmanController");
 
 // Keep the file in memory - it's parsed with xlsx and never needs to touch disk.
@@ -21,6 +22,10 @@ const upload = multer({
 });
 
 router.route("/").get(getSalesmen).post(createSalesman);
+
+// GET /salesmen/upload-template - must come before "/:id" or Express will
+// try to treat "upload-template" as an :id value.
+router.get("/upload-template", downloadSalesmenTemplate);
 
 router.route("/:id").put(updateSalesman).delete(deleteSalesman);
 

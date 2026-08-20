@@ -218,10 +218,69 @@ const uploadSalesmen = async (req, res) => {
   }
 };
 
+// GET /salesmen/upload-template - generates an .xlsx with the exact column
+// headers the parser above expects, plus one real row from the database
+// (falling back to a placeholder row if the collection is empty), so users
+// have a working reference instead of guessing column names.
+const downloadSalesmenTemplate = async (req, res) => {
+  try {
+    const sample = await Salesman.findOne().sort({ createdAt: -1 }).lean();
+
+    // Headers are deliberately worded to match what findColumnIndex() above
+    // looks for - "Contact Number" contains "contact", "Region" matches the
+    // area/region fallback, etc. - so a round-trip download -> fill -> upload
+    // always parses correctly.
+    const headers = [
+      "Name",
+      "Designation",
+      "Region",
+      "Contact Number",
+      "Email",
+    ];
+
+    const sampleRow = sample
+      ? [
+          sample.name || "",
+          sample.designation || "",
+          sample.area || "",
+          sample.contactNumber || "",
+          sample.email || "",
+        ]
+      : [
+          "Dr. Imran",
+          "Regional Sales Manager",
+          "Multan",
+          "0300-1234567",
+          "imran@example.com",
+        ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    worksheet["!cols"] = headers.map(() => ({ wch: 24 }));
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Salesmen");
+
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="salesmen-upload-template.xlsx"',
+    );
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createSalesman,
   getSalesmen,
   updateSalesman,
   deleteSalesman,
   uploadSalesmen,
+  downloadSalesmenTemplate,
 };

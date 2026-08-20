@@ -359,6 +359,77 @@ const uploadSales = async (req, res) => {
   }
 };
 
+// GET /sales/upload-template - generates an .xlsx with the exact column
+// headers uploadSales() below expects, plus one real row (the most recently
+// created Sale - falling back to a placeholder row if the collection is
+// empty), so users have a working reference instead of guessing column
+// names/casing. Mirrors salesmanController's downloadSalesmenTemplate and
+// targetController's downloadTargetsTemplate.
+const downloadSalesTemplate = async (req, res) => {
+  try {
+    const sample = await Sale.findOne().sort({ createdAt: -1 }).lean();
+
+    // Headers are deliberately worded to match what findColumnIndex() in
+    // uploadSales looks for - "Sale Rate" contains "sale" + "rate" (so it's
+    // read as the total amount, not the per-unit Rate column), "Units"
+    // contains "unit", etc. - so a round-trip download -> fill -> upload
+    // always parses correctly.
+    const headers = [
+      "Salesman",
+      "Product",
+      "Region",
+      "Customer",
+      "Quantity",
+      "Units",
+      "Rate",
+      "Sale Rate",
+    ];
+
+    const sampleRow = sample
+      ? [
+          sample.salesman || "",
+          sample.product || "",
+          sample.region || "",
+          sample.customer || "",
+          sample.quantity || 0,
+          sample.unit || "bags",
+          sample.rate || 0,
+          sample.totalAmount || 0,
+        ]
+      : [
+          "Dr. Imran",
+          "Urea",
+          "Multan",
+          "Al-Noor Feed Mill",
+          500,
+          "bags",
+          500,
+          250000,
+        ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    worksheet["!cols"] = headers.map(() => ({ wch: 22 }));
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sales");
+
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="sales-upload-template.xlsx"',
+    );
+    res.send(buffer);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createSale,
   getSales,
@@ -366,4 +437,5 @@ module.exports = {
   deleteSale,
   getSaleFormOptions,
   uploadSales,
+  downloadSalesTemplate,
 };

@@ -152,19 +152,30 @@ const deleteSalesTeam = async (req, res) => {
 // included). Same header-detection approach as the other uploads.
 //
 // Column mapping (per confirmed decisions):
-//   Feed Mill Name  -> feedMillName (required, upsert key)
-//   Address         -> dropped (duplicate of Mill Address); used as a
-//                       fallback for millAddress only if "Mill Address"
-//                       itself isn't found in the header row
-//   Contact         -> appended into millPhones (it's a phone number, and
-//                       millPhones is free-text/plural so it can hold more
-//                       than one number)
-//   Mill Address    -> millAddress
-//   Office Address  -> officeAddress
-//   Mill Phone(s)   -> millPhones
-//   Office Phone(s) -> officePhones
-//   Email           -> email
-//   Production      -> copied into BOTH productionCapacity and bagsPerMonth
+//   Feed Mill Name    -> feedMillName (required, upsert key)
+//   Address           -> dropped (duplicate of Mill Address); used as a
+//                         fallback for millAddress only if "Mill Address"
+//                         itself isn't found in the header row
+//   Contact           -> appended into millPhones (it's a phone number, and
+//                         millPhones is free-text/plural so it can hold more
+//                         than one number). Distinct from the "Contact ___"
+//                         person columns below.
+//   Mill Address      -> millAddress
+//   Office Address    -> officeAddress
+//   Mill Phone(s)     -> millPhones
+//   Office Phone(s)   -> officePhones
+//   Email             -> email (the mill's own email, not a person's)
+//   Production        -> copied into BOTH productionCapacity and bagsPerMonth
+//   Contact Name        \
+//   Contact Designation  |  together become contacts[0] - a single primary
+//   Contact Department   |  contact (isPrimary: true). Only written when at
+//   Contact Mobile       |  least one of these six columns has a value for
+//   Contact Landline     |  that row, so rows with no contact info don't
+//   Contact Email       /   wipe out contacts entered via the Add/Edit form.
+//                           NOTE: this replaces the mill's entire contacts
+//                           array with this single contact - if a mill has
+//                           multiple contacts entered via the form, uploading
+//                           a row for it will reduce it down to just this one.
 //
 // Not mapped from these headers: districtRegion, millOwner, srNo - these
 // stay empty on upload (districtRegion in particular means uploaded rows
@@ -216,9 +227,11 @@ const joinPhones = (a, b) => [a, b].filter(Boolean).join(", ");
 
 // POST /directory/feed-mills/upload - accepts an .xlsx/.xls file with Feed
 // Mill Name, Address, Contact, Mill Address, Office Address, Mill Phone(s),
-// Office Phone(s), Email, Production columns (order-independent, optional
-// title row tolerated). Upserts on Feed Mill Name so re-uploading updates
-// existing feed mills instead of duplicating them.
+// Office Phone(s), Email, Production, Contact Name, Contact Designation,
+// Contact Department, Contact Mobile, Contact Landline, Contact Email
+// columns (order-independent, optional title row tolerated). Upserts on
+// Feed Mill Name so re-uploading updates existing feed mills instead of
+// duplicating them.
 const uploadFeedMills = async (req, res) => {
   try {
     if (!req.file) {
@@ -256,13 +269,27 @@ const uploadFeedMills = async (req, res) => {
     const col = {
       feedMillName: findColumnIndex(headers, ["feedmill"]),
       plainAddress: findColumnIndex(headers, ["address"], ["mill", "office"]),
-      contact: findColumnIndex(headers, ["contact"]),
+      // Excludes "Contact Name"/"Contact Mobile"/etc so the phone-number
+      // "Contact" column doesn't accidentally match those instead.
+      contact: findColumnIndex(
+        headers,
+        ["contact"],
+        ["name", "designation", "department", "mobile", "landline", "email"],
+      ),
       millAddress: findColumnIndex(headers, ["mill", "address"]),
       officeAddress: findColumnIndex(headers, ["office", "address"]),
       millPhones: findColumnIndex(headers, ["mill", "phone"]),
       officePhones: findColumnIndex(headers, ["office", "phone"]),
-      email: findColumnIndex(headers, ["email"]),
+      // Excludes "Contact Email" so the mill's own email doesn't get
+      // confused with the contact person's email.
+      email: findColumnIndex(headers, ["email"], ["contact"]),
       production: findColumnIndex(headers, ["production"]),
+      contactName: findColumnIndex(headers, ["contact", "name"]),
+      contactDesignation: findColumnIndex(headers, ["contact", "designation"]),
+      contactDepartment: findColumnIndex(headers, ["contact", "department"]),
+      contactMobile: findColumnIndex(headers, ["contact", "mobile"]),
+      contactLandline: findColumnIndex(headers, ["contact", "landline"]),
+      contactEmail: findColumnIndex(headers, ["contact", "email"]),
     };
 
     if (col.feedMillName === -1) {
@@ -300,6 +327,20 @@ const uploadFeedMills = async (req, res) => {
 
       const production = cell(row, col.production);
 
+      const contactName = cell(row, col.contactName);
+      const contactDesignation = cell(row, col.contactDesignation);
+      const contactDepartment = cell(row, col.contactDepartment);
+      const contactMobile = cell(row, col.contactMobile);
+      const contactLandline = cell(row, col.contactLandline);
+      const contactEmail = cell(row, col.contactEmail);
+      const hasContactInfo =
+        contactName ||
+        contactDesignation ||
+        contactDepartment ||
+        contactMobile ||
+        contactLandline ||
+        contactEmail;
+
       const doc = {
         feedMillName,
         millAddress,
@@ -313,6 +354,24 @@ const uploadFeedMills = async (req, res) => {
         productionCapacity: production || null,
         bagsPerMonth: production || null,
       };
+
+      // Only touch contacts if the row actually has contact info - an empty
+      // contacts array in $set would otherwise wipe out contacts entered via
+      // the Add/Edit form for a mill that's just being re-uploaded for its
+      // other fields.
+      if (hasContactInfo) {
+        doc.contacts = [
+          {
+            name: contactName,
+            designation: contactDesignation,
+            department: contactDepartment,
+            mobile: contactMobile,
+            landline: contactLandline,
+            email: contactEmail,
+            isPrimary: true,
+          },
+        ];
+      }
 
       // Upsert on Feed Mill Name so re-uploading the same mill updates its
       // record instead of creating a duplicate.
@@ -347,6 +406,100 @@ const uploadFeedMills = async (req, res) => {
   }
 };
 
+// GET /directory/feed-mills/upload-template - generates an .xlsx with the
+// exact column headers uploadFeedMills() below expects, plus one real row
+// (the most recently created Feed Mill - falling back to a placeholder row
+// if the collection is empty), so users have a working reference instead of
+// guessing column names. Mirrors the template downloads on the Salesman /
+// Target / Sales pages.
+const downloadFeedMillsTemplate = async (req, res) => {
+  try {
+    const sample = await FeedMill.findOne().sort({ createdAt: -1 }).lean();
+    const primaryContact =
+      (sample?.contacts || []).find((c) => c.isPrimary) ||
+      sample?.contacts?.[0];
+
+    // Headers are deliberately worded to match what findColumnIndex() in
+    // uploadFeedMills looks for - "Mill Address" contains "mill" + "address"
+    // (and is picked over the generic/excluded plain "Address" column),
+    // "Mill Phone(s)" contains "mill" + "phone", "Contact Mobile" contains
+    // "contact" + "mobile" (and is excluded from the plain "Contact"/"Email"
+    // columns), etc. - so a round-trip download -> fill -> upload always
+    // parses correctly.
+    const headers = [
+      "Feed Mill Name",
+      "Mill Address",
+      "Office Address",
+      "Contact",
+      "Mill Phone(s)",
+      "Office Phone(s)",
+      "Email",
+      "Production",
+      "Contact Name",
+      "Contact Designation",
+      "Contact Department",
+      "Contact Mobile",
+      "Contact Landline",
+      "Contact Email",
+    ];
+
+    const sampleRow = sample
+      ? [
+          sample.feedMillName || "",
+          sample.millAddress || "",
+          sample.officeAddress || "",
+          "",
+          sample.millPhones || "",
+          sample.officePhones || "",
+          sample.email || "",
+          sample.productionCapacity || sample.bagsPerMonth || "",
+          primaryContact?.name || "",
+          primaryContact?.designation || "",
+          primaryContact?.department || "",
+          primaryContact?.mobile || "",
+          primaryContact?.landline || "",
+          primaryContact?.email || "",
+        ]
+      : [
+          "Al-Noor Feed Mill",
+          "Industrial Area, Multan",
+          "Main Bazaar, Multan",
+          "0300-1234567",
+          "042-1234567",
+          "042-7654321",
+          "info@alnoorfeed.com",
+          "5000 bags/month",
+          "Muhammad Imran",
+          "Regional Sales Manager",
+          "Sales",
+          "0300-7654321",
+          "061-1234567",
+          "imran@alnoorfeed.com",
+        ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    worksheet["!cols"] = headers.map(() => ({ wch: 22 }));
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Feed Mills");
+
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="feed-mills-upload-template.xlsx"',
+    );
+    res.send(buffer);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getFeedMills,
   getSalesTeam,
@@ -358,4 +511,5 @@ module.exports = {
   updateSalesTeam,
   deleteSalesTeam,
   uploadFeedMills,
+  downloadFeedMillsTemplate,
 };

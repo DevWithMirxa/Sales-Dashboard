@@ -9,6 +9,7 @@ const {
   updateTarget,
   deleteTarget,
   uploadTargets,
+  downloadTargetsTemplate,
 } = require("../controllers/targetController");
 
 // Keep the file in memory - it's parsed with xlsx and never needs to touch disk.
@@ -31,6 +32,10 @@ router.post("/", createTarget);
 
 // Get All Targets
 router.get("/", getAllTargets);
+
+// GET /targets/upload-template - must come before "/:id" or Express will
+// try to treat "upload-template" as an :id value.
+router.get("/upload-template", downloadTargetsTemplate);
 
 // Upload Targets from Excel - must be declared before "/:id" or Express
 // will try to treat "upload" as an :id value.

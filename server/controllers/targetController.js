@@ -233,6 +233,71 @@ exports.deleteTarget = async (req, res) => {
   }
 };
 
+// GET /targets/upload-template - generates an .xlsx with the exact column
+// headers uploadTargets() below expects, plus one real row (one product line
+// from the most recently created Target - falling back to a placeholder row
+// if the collection is empty), so users have a working reference instead of
+// guessing column names/casing. Mirrors salesmanController's
+// downloadSalesmenTemplate.
+exports.downloadTargetsTemplate = async (req, res) => {
+  try {
+    const sample = await Target.findOne()
+      .sort({ createdAt: -1 })
+      .populate("assignedTo")
+      .populate("products.product")
+      .lean();
+
+    // Headers are deliberately worded to match what findColumnIndex() in
+    // uploadTargets looks for - "Target Quantity" contains "target" +
+    // "quantity", "Target Revenue (Rs)" contains "target" + "revenue", etc.
+    // - so a round-trip download -> fill -> upload always parses correctly.
+    const headers = [
+      "Period",
+      "Salesman",
+      "Region",
+      "Product",
+      "Target Quantity",
+      "Unit",
+      "Target Revenue (Rs)",
+    ];
+
+    const sampleProduct = sample?.products?.[0];
+
+    const sampleRow = sample
+      ? [
+          sample.period || "Monthly",
+          sample.assignedTo?.name || "",
+          sample.region || sample.assignedTo?.area || "",
+          sampleProduct?.product?.name || "",
+          sampleProduct?.targetQuantity || 0,
+          sampleProduct?.unit || "kg",
+          sampleProduct?.targetRevenue || 0,
+        ]
+      : ["Monthly", "Dr. Imran", "Multan", "Urea", 500, "bags", 250000];
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    worksheet["!cols"] = headers.map(() => ({ wch: 22 }));
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Targets");
+
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="targets-upload-template.xlsx"',
+    );
+    res.send(buffer);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Excel upload
 //

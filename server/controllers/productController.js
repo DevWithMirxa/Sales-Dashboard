@@ -205,10 +205,50 @@ const uploadProducts = async (req, res) => {
   }
 };
 
+// GET /products/upload-template - generates an .xlsx with the exact column
+// headers the parser above expects, plus one real row from the database
+// (falling back to a placeholder row if the collection is empty), so users
+// have a working reference instead of guessing column names.
+const downloadProductsTemplate = async (req, res) => {
+  try {
+    const sample = await Product.findOne().sort({ createdAt: -1 }).lean();
+
+    // Headers are deliberately worded to match what findColumnIndex() above
+    // looks for - "Price (Rs/Kg)" contains "price", "Packing (Kg)" contains
+    // "pack" - so a round-trip download -> fill -> upload always parses.
+    const headers = ["Product Name", "Price (Rs/Kg)", "Packing (Kg)"];
+
+    const sampleRow = sample
+      ? [sample.name || "", sample.pricePerKg ?? "", sample.packingKg ?? ""]
+      : ["Betaine HCL", "625", "25"];
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    worksheet["!cols"] = headers.map(() => ({ wch: 22 }));
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
+
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="products-upload-template.xlsx"',
+    );
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createProduct,
   getProducts,
   updateProduct,
   deleteProduct,
   uploadProducts,
+  downloadProductsTemplate,
 };

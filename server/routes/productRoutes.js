@@ -7,6 +7,7 @@ const {
   updateProduct,
   deleteProduct,
   uploadProducts,
+  downloadProductsTemplate,
 } = require("../controllers/productController");
 
 // const { protect } = require('../middleware/authMiddleware');
@@ -23,6 +24,10 @@ const upload = multer({
 });
 
 router.route("/").get(getProducts).post(createProduct);
+
+// GET /products/upload-template - must come before "/:id" or Express will
+// try to treat "upload-template" as an :id value.
+router.get("/upload-template", downloadProductsTemplate);
 
 router.route("/:id").put(updateProduct).delete(deleteProduct);
 

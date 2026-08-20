@@ -10,6 +10,7 @@ import {
   Trash2,
   Edit2,
   Upload,
+  Download,
   Loader2,
   CheckCircle2,
   AlertCircle,
@@ -20,6 +21,13 @@ import { exportToCSV } from "@/lib/csvExport";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 function Salesmen() {
   const [salesmen, setSalesmen] = useState([]);
@@ -28,6 +36,8 @@ function Salesmen() {
   const [editingSalesman, setEditingSalesman] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState(null); // { type: 'success' | 'error', text }
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const fileInputRef = useRef(null);
 
   const fetchSalesmen = async () => {
@@ -92,7 +102,32 @@ function Salesmen() {
     setEditingSalesman(null);
   };
 
-  const handleUploadClick = () => fileInputRef.current?.click();
+  const handleUploadClick = () => {
+    setShowUploadDialog(false);
+    fileInputRef.current?.click();
+  };
+
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    try {
+      const res = await api.get("/salesmen/upload-template", {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "salesmen-upload-template.xlsx");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading template:", error);
+      alert("Failed to download the template file.");
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
 
   const handleFileSelected = async (e) => {
     const file = e.target.files?.[0];
@@ -240,7 +275,7 @@ function Salesmen() {
               onChange={handleFileSelected}
             />
             <button
-              onClick={handleUploadClick}
+              onClick={() => setShowUploadDialog(true)}
               disabled={uploading}
               className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
             >
@@ -284,6 +319,46 @@ function Salesmen() {
             </button>
           </div>
         )}
+
+        {/* Upload choice dialog */}
+        <Dialog
+          open={showUploadDialog}
+          onOpenChange={(open) => setShowUploadDialog(open)}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Upload Salesmen from Excel</DialogTitle>
+              <DialogDescription>
+                Not sure of the exact column names? Download the format file
+                first — it has the correct headers plus one real example row, so
+                the upload can't fail because of a mismatched column name.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-3 py-2">
+              <button
+                onClick={handleDownloadTemplate}
+                disabled={downloadingTemplate}
+                className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+              >
+                {downloadingTemplate ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Download className="w-5 h-5" />
+                )}
+                {downloadingTemplate
+                  ? "Preparing file..."
+                  : "Download Format File"}
+              </button>
+              <button
+                onClick={handleUploadClick}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Upload className="w-5 h-5" />
+                Browse Excel File
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <TanStackDataTable
           columns={columns}

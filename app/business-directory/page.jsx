@@ -47,6 +47,7 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  FileDown,
 } from "lucide-react";
 
 import {
@@ -120,6 +121,8 @@ function BusinessDirectoryContent() {
   const [deleting, setDeleting] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState(null); // { type: 'success' | 'error', text }
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const fileInputRef = useRef(null);
 
   // Delete a record via the API and optimistically remove it from the table.
@@ -209,13 +212,46 @@ function BusinessDirectoryContent() {
     return () => controller.abort();
   }, [debouncedSearch, district]);
 
-  const handleUploadClick = () => fileInputRef.current?.click();
+  // "Browse Excel File" opens the dialog instead of the file picker directly,
+  // so the user sees the Download Format File option first.
+  const handleBrowseClick = () => setShowUploadDialog(true);
+
+  // "Upload Excel File" inside the dialog closes it, then opens the actual
+  // OS file picker. The hidden <input type="file"> below stays mounted
+  // outside the dialog, so this still works after the dialog unmounts.
+  const handleChooseUpload = () => {
+    setShowUploadDialog(false);
+    fileInputRef.current?.click();
+  };
+
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    try {
+      const res = await api.get("/directory/feed-mills/upload-template", {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "feed-mills-upload-template.xlsx");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error downloading template:", err);
+      alert("Failed to download the template file.");
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
 
   const handleFileSelected = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = ""; // reset so selecting the same file again still fires onChange
     if (!file) return;
 
+    setShowUploadDialog(false);
     setUploading(true);
     setUploadMessage(null);
 
@@ -607,10 +643,7 @@ function BusinessDirectoryContent() {
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <DownloadButton
-            onExcel={handleExportExcel}
-            onPdf={handleExportPDF}
-          />
+          <DownloadButton onExcel={handleExportExcel} onPdf={handleExportPDF} />
           <input
             ref={fileInputRef}
             type="file"
@@ -620,7 +653,7 @@ function BusinessDirectoryContent() {
           />
           <Button
             variant="outline"
-            onClick={handleUploadClick}
+            onClick={handleBrowseClick}
             disabled={uploading}
           >
             {uploading ? (
@@ -628,7 +661,7 @@ function BusinessDirectoryContent() {
             ) : (
               <Upload className="w-4 h-4 mr-2" />
             )}
-            {uploading ? "Uploading..." : "Upload Excel File"}
+            {uploading ? "Uploading..." : "Browse Excel File"}
           </Button>
         </div>
       </div>
@@ -851,6 +884,52 @@ function BusinessDirectoryContent() {
           </div>
         </CardFooter>
       </Card>
+
+      {/* Browse Excel dialog - download a correctly-formatted template, or
+          go straight to picking a file to upload */}
+      {showUploadDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold text-foreground">
+                Import Feed Mills
+              </h3>
+              <button
+                onClick={() => setShowUploadDialog(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Not sure about the column headers? Download the format file
+                first — it has the exact headers we expect, plus one example
+                row.
+              </p>
+              <Button
+                variant="outline"
+                onClick={handleDownloadTemplate}
+                disabled={downloadingTemplate}
+                className="w-full"
+              >
+                {downloadingTemplate ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileDown className="w-4 h-4 mr-2" />
+                )}
+                {downloadingTemplate
+                  ? "Downloading..."
+                  : "Download Format File"}
+              </Button>
+              <Button onClick={handleChooseUpload} className="w-full">
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Excel File
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit Form Modal */}
       {editingRecord && (

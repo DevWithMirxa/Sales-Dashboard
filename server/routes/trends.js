@@ -8,6 +8,7 @@ const {
   getBySalesperson,
   getSalesSeries,
   uploadTrends,
+  downloadTrendsTemplate,
 } = require("../controllers/trendController");
 
 // Keep the file in memory - it's parsed with xlsx and never needs to touch disk.
@@ -26,6 +27,7 @@ router.get("/filters", getFilters);
 router.get("/by-product", getByProduct);
 router.get("/by-salesperson", getBySalesperson);
 router.get("/series", getSalesSeries);
+router.get("/upload-template", downloadTrendsTemplate);
 
 // POST /trends/upload - excel file field name must be "file"
 router.post(

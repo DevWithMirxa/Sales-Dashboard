@@ -12,6 +12,7 @@ const {
   updateSalesTeam,
   deleteSalesTeam,
   uploadFeedMills,
+  downloadFeedMillsTemplate,
 } = require("../controllers/directoryController");
 
 // Keep the file in memory - it's parsed with xlsx and never needs to touch disk.
@@ -28,6 +29,7 @@ const upload = multer({
 router.get("/feed-mills", getFeedMills);
 router.get("/sales-team", getSalesTeam);
 router.get("/filters", getFilters);
+router.get("/feed-mills/upload-template", downloadFeedMillsTemplate);
 
 router.post("/feed-mills", createFeedMill);
 router.put("/feed-mills/:id", updateFeedMill);

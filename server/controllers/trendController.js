@@ -130,12 +130,7 @@ const getTrends = async (req, res) => {
 // records that actually exist in the sale data.
 const getFilters = async (req, res) => {
   try {
-    const [
-      products,
-      salespersons,
-      periods,
-      regions,
-    ] = await Promise.all([
+    const [products, salespersons, periods, regions] = await Promise.all([
       Trend.distinct("product"),
       Trend.distinct("salesperson"),
       Trend.distinct("period"),
@@ -340,7 +335,10 @@ const getSalesSeries = async (req, res) => {
       granularity === "month"
         ? { year: "$year", segment: "$monthNumber" }
         : granularity === "quarter"
-          ? { year: "$year", segment: { $ceil: { $divide: ["$monthNumber", 3] } } }
+          ? {
+              year: "$year",
+              segment: { $ceil: { $divide: ["$monthNumber", 3] } },
+            }
           : { year: "$year" };
 
     const rows = await Trend.aggregate([
@@ -616,6 +614,71 @@ const uploadTrends = async (req, res) => {
   }
 };
 
+// GET /trends/upload-template - generates an .xlsx with the exact column
+// headers uploadTrends() below expects, plus one real row (the most
+// recently created Trend record - falling back to a placeholder row if the
+// collection is empty), so users have a working reference instead of
+// guessing column names. Mirrors the template downloads on the other pages.
+//
+// IMPORTANT: "Month" and "Product" must stay exactly those words (no extra
+// text) - findHeaderRow() below requires an exact normalized match on both
+// to detect the header row, unlike the other columns which use substring
+// matching via findColumnIndex().
+const downloadTrendsTemplate = async (req, res) => {
+  try {
+    const sample = await Trend.findOne().sort({ createdAt: -1 }).lean();
+
+    const headers = [
+      "Month",
+      "Salesperson",
+      "Product",
+      "Target Volume (Kg)",
+      "Sale Volume (Kg)",
+      "Target Value (Rs)",
+      "Sale Value (Rs)",
+      "Price (Rs)",
+      "Packing (Kg)",
+    ];
+
+    const sampleRow = sample
+      ? [
+          `${sample.month || "Jan"}-${String(
+            sample.year || new Date().getFullYear(),
+          ).slice(-2)}`,
+          sample.salesperson || "",
+          sample.product || "",
+          sample.targetVolumeKg || 0,
+          sample.saleVolumeKg || 0,
+          sample.targetValueRs || 0,
+          sample.saleValueRs || 0,
+          sample.productPriceRs || "",
+          sample.productPackingKg || "",
+        ]
+      : ["Jan-25", "Dr. Imran", "Urea", 5000, 4200, 2500000, 2100000, 500, 50];
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    worksheet["!cols"] = headers.map(() => ({ wch: 20 }));
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Trends");
+
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="trends-upload-template.xlsx"',
+    );
+    res.send(buffer);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getTrends,
   getFilters,
@@ -623,4 +686,5 @@ module.exports = {
   getBySalesperson,
   getSalesSeries,
   uploadTrends,
+  downloadTrendsTemplate,
 };

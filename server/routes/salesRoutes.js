@@ -8,6 +8,7 @@ const {
   deleteSale,
   getSaleFormOptions,
   uploadSales,
+  downloadSalesTemplate,
 } = require("../controllers/salesController");
 
 // Keep the file in memory - it's parsed with xlsx and never needs to touch disk.
@@ -22,8 +23,9 @@ const upload = multer({
 });
 
 // Must be declared before "/:id" or Express will try to treat
-// "form-options" / "upload" as an :id value.
+// "form-options" / "upload" / "upload-template" as an :id value.
 router.get("/form-options", getSaleFormOptions);
+router.get("/upload-template", downloadSalesTemplate);
 
 router.post(
   "/upload",
