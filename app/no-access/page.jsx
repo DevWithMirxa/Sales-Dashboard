@@ -18,15 +18,15 @@ export default function NoAccessPage() {
           </div>
         </div>
 
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">Access Denied</h1>
-        <p className="text-gray-600 mb-8">
+        <h1 className="text-lg font-bold text-gray-900 mb-4">Access Denied</h1>
+        <p className="text-sm text-gray-600 mb-8">
           You don't have permission to access the SalesHub dashboard. Only administrators can view this section. If you believe this is an error, please contact your system administrator.
         </p>
 
         <div className="space-y-4">
           <button
             onClick={logout}
-            className="inline-flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition"
+            className="inline-flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition text-xs"
           >
             <BarChart3 className="w-5 h-5" />
             Logout & Switch Account

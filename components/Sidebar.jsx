@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import ConfirmDelete from "@/components/ConfirmDelete";
 import {
   BarChart3,
   Box,
@@ -49,10 +50,8 @@ export default function Sidebar({ isOpen, onToggle }) {
   };
 
   const handleLogout = () => {
-    if (confirm("Are you sure you want to logout?")) {
-      logout();
-      router.push("/login");
-    }
+    logout();
+    router.push("/login");
   };
 
   const getInitials = (name) => {
@@ -124,13 +123,19 @@ export default function Sidebar({ isOpen, onToggle }) {
               <p className="text-xs text-gray-500">{user?.email}</p>
             </div>
             <div className="p-2">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+              <ConfirmDelete
+                title="Sign out"
+                description="Are you sure you want to sign out?"
+                confirmLabel="Sign out"
+                onConfirm={handleLogout}
               >
-                <LogOut className="w-4 h-4" />
-                Sign out
-              </button>
+                <button
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign out
+                </button>
+              </ConfirmDelete>
             </div>
           </div>
         )}

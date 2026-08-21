@@ -471,7 +471,7 @@ function TrendsContent() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">Trends</h1>
+        <h1 className="text-lg font-bold tracking-tight">Trends</h1>
         <div className="flex flex-wrap gap-3 items-center">
           <DownloadButton
             onExcel={handleExportExcel}
@@ -915,7 +915,7 @@ function TrendsContent() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-semibold text-foreground">
+              <h3 className="text-base font-semibold text-foreground">
                 Import Trends
               </h3>
               <button

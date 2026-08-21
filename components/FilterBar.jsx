@@ -4,7 +4,11 @@ import React, { useState, useEffect } from "react";
 import { Filter } from "lucide-react";
 import api from "@/lib/api";
 
-export default function FilterBar({ onFilterChange, onBreakdownChange, breakdown }) {
+export default function FilterBar({
+  onFilterChange,
+  onBreakdownChange,
+  breakdown,
+}) {
   const [region, setRegion] = useState("all");
   const [product, setProduct] = useState("all");
   const [salesperson, setSalesperson] = useState("all");
@@ -72,7 +76,7 @@ export default function FilterBar({ onFilterChange, onBreakdownChange, breakdown
   return (
     <div className="flex flex-col sm:flex-row gap-4 flex-wrap items-end">
       {/* Region Filter */}
-      <div className="flex-1 min-w-40">
+      <div className="flex-1 min-w-16">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Region
         </label>
@@ -80,14 +84,16 @@ export default function FilterBar({ onFilterChange, onBreakdownChange, breakdown
           name="region"
           value={region}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="all">All Regions</option>
+          <option className="text-sm" value="all">
+            All Regions
+          </option>
         </select>
       </div>
 
       {/* Product Filter */}
-      <div className="flex-1 min-w-40">
+      <div className="flex-1 min-w-16">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Product
         </label>
@@ -95,14 +101,16 @@ export default function FilterBar({ onFilterChange, onBreakdownChange, breakdown
           name="product"
           value={product}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="all">All Products</option>
+          <option className="text-sm" value="all">
+            All Products
+          </option>
         </select>
       </div>
 
       {/* Salesperson Filter */}
-      <div className="flex-1 min-w-40">
+      <div className="flex-1 min-w-16">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Salesperson
         </label>
@@ -110,32 +118,39 @@ export default function FilterBar({ onFilterChange, onBreakdownChange, breakdown
           name="salesperson"
           value={salesperson}
           onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="all">All Salespeople</option>
+          <option className="text-sm" value="all">
+            All Salespeople
+          </option>
         </select>
       </div>
 
       {/* Breakdown Filter (Monthly / Quarterly / Yearly) */}
-      <div className="flex-1 min-w-40">
+      <div className="flex-1 min-w-16">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          <Filter className="w-4 h-4 inline mr-2" />
           Breakdown
         </label>
         <select
           name="breakdown"
           value={breakdown?.granularity || "month"}
           onChange={handleBreakdownChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="month">Monthly</option>
-          <option value="quarter">Quarterly</option>
-          <option value="year">Yearly</option>
+          <option className="text-sm" value="month">
+            Monthly
+          </option>
+          <option className="text-sm" value="quarter">
+            Quarterly
+          </option>
+          <option className="text-sm" value="year">
+            Yearly
+          </option>
         </select>
       </div>
 
       {/* Duration Filter (All / 2024 / 2025 / 2026) */}
-      <div className="flex-1 min-w-40">
+      <div className="flex-1 min-w-16">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Duration
         </label>
@@ -143,11 +158,13 @@ export default function FilterBar({ onFilterChange, onBreakdownChange, breakdown
           name="breakdownYear"
           value={breakdown?.year || "all"}
           onChange={handleBreakdownChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="all">All</option>
+          <option className="text-sm" value="all">
+            All
+          </option>
           {years.map((y) => (
-            <option key={y} value={String(y)}>
+            <option className="text-sm" key={y} value={String(y)}>
               {y}
             </option>
           ))}
@@ -157,7 +174,7 @@ export default function FilterBar({ onFilterChange, onBreakdownChange, breakdown
       {/* Clear Filters Button */}
       <button
         onClick={handleClear}
-        className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+        className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-medium transition-colors text-xs"
       >
         Clear
       </button>

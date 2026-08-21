@@ -7,6 +7,8 @@ import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import {
+  Area,
+  AreaChart,
   BarChart,
   Bar,
   CartesianGrid,
@@ -21,13 +23,13 @@ import {
   Download,
   MapPin,
   Package,
+  Search,
   Target,
   TrendingUp,
   UserRound,
   Wallet,
   FileSpreadsheet,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -38,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -147,6 +150,18 @@ export default function ReportsPage() {
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedQuarter, setSelectedQuarter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Icon + row-label shown per report in the pill tabs and table headers.
+  // Keyed by report id so it stays in sync with reportSections below.
+  const REPORT_META = {
+    summary: { icon: BarChart3, entity: "Metric" },
+    trend: { icon: TrendingUp, entity: "Period" },
+    salesperson: { icon: UserRound, entity: "Salesperson" },
+    product: { icon: Package, entity: "Product" },
+    region: { icon: MapPin, entity: "Region" },
+    recovery: { icon: Wallet, entity: "Salesperson" },
+  };
 
   const fetchReportsData = async () => {
     try {
@@ -444,6 +459,46 @@ export default function ReportsPage() {
       .sort((left, right) => right.recoveryAmount - left.recoveryAmount);
   }, [salesmen]);
 
+  // Search box in the report panel filters whichever list-style report is
+  // currently active, by its name/label field. Card + chart reports ignore it.
+  const query = searchQuery.trim().toLowerCase();
+  const searchedSalespersonReport = useMemo(
+    () =>
+      query
+        ? salespersonReport.filter((item) =>
+            item.salesperson.toLowerCase().includes(query),
+          )
+        : salespersonReport,
+    [salespersonReport, query],
+  );
+  const searchedProductBreakdown = useMemo(
+    () =>
+      query
+        ? productBreakdown.filter((item) =>
+            item.product.toLowerCase().includes(query),
+          )
+        : productBreakdown,
+    [productBreakdown, query],
+  );
+  const searchedRegionBreakdown = useMemo(
+    () =>
+      query
+        ? regionBreakdown.filter((item) =>
+            item.region.toLowerCase().includes(query),
+          )
+        : regionBreakdown,
+    [regionBreakdown, query],
+  );
+  const searchedRecoveryRows = useMemo(
+    () =>
+      query
+        ? recoveryRows.filter((item) =>
+            item.salesperson.toLowerCase().includes(query),
+          )
+        : recoveryRows,
+    [recoveryRows, query],
+  );
+
   const totals = useMemo(() => {
     const saleValue = filteredTrendRows.reduce(
       (sum, row) => sum + Number(row.saleValueRs || 0),
@@ -462,24 +517,32 @@ export default function ReportsPage() {
     return { saleValue, targetValue, recoveryAmount, achievement };
   }, [filteredTrendRows, recoveryRows]);
 
+  // Last few points of the period series, used to draw the small trend
+  // sparkline on each KPI card (mirrors the recovery/sales cadence, not a
+  // full chart — the full breakdown lives in the "Sales trend" report).
+  const sparklineSeries = periodSeries.slice(-8);
+
   const summaryCards = [
     {
       title: "Sales Value",
       value: formatCurrency(totals.saleValue),
       detail: `${formatNumber(filteredTrendRows.reduce((sum, row) => sum + Number(row.saleVolumeKg || 0), 0))} kg sold`,
       icon: Wallet,
+      trend: sparklineSeries.map((p) => ({ v: p.sales })),
     },
     {
       title: "Target Value",
       value: formatCurrency(totals.targetValue),
       detail: `Achievement ${formatPct(totals.achievement)}`,
       icon: Target,
+      trend: sparklineSeries.map((p) => ({ v: p.target })),
     },
     {
       title: "Recovery",
       value: formatCurrency(totals.recoveryAmount),
       detail: `${recoveryRows.length} salespersons tracked`,
       icon: TrendingUp,
+      trend: recoveryRows.slice(0, 8).map((r) => ({ v: r.recoveryAmount })),
     },
   ];
 
@@ -866,304 +929,284 @@ export default function ReportsPage() {
     reportSections[0];
 
   const renderSelectedReport = () => {
+    // Small reusable table shell so the four list-style reports (salesperson,
+    // product, region, recovery) share one consistent look.
+    const ListTable = ({ columns, rows, emptyLabel }) =>
+      rows.length ? (
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                {columns.map((col) => (
+                  <th
+                    key={col}
+                    className="whitespace-nowrap px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-gray-500"
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">{rows}</tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
+          {emptyLabel}
+        </div>
+      );
+
+    const AchievementBadge = ({ value }) => (
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+          value >= 100
+            ? "bg-green-50 text-green-700"
+            : value >= 75
+              ? "bg-amber-50 text-amber-700"
+              : "bg-red-50 text-red-700"
+        }`}
+      >
+        {formatPct(value)}
+      </span>
+    );
+
     switch (selectedReport.id) {
       case "summary":
         return (
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-blue-600" />
-                {selectedReport.label}
-                <Badge variant="outline">{reportPeriodLabel}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {summaryCards.map((card) => {
-                const Icon = card.icon;
-                return (
-                  <div
-                    key={card.title}
-                    className="rounded-lg border border-gray-200 p-4"
-                  >
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-600">
-                        {card.title}
-                      </span>
-                      <Icon className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div className="text-2xl font-semibold text-gray-900">
-                      {card.value}
-                    </div>
-                    <p className="mt-2 text-sm text-gray-500">{card.detail}</p>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {summaryCards.map((card) => {
+              const CardIcon = card.icon;
+              return (
+                <div
+                  key={card.title}
+                  className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-600">
+                      {card.title}
+                    </span>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+                      <CardIcon className="h-3.5 w-3.5" />
+                    </span>
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {card.value}
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">{card.detail}</p>
+                </div>
+              );
+            })}
+            <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2 xl:col-span-4">
+              <p className="mb-1 text-sm font-medium text-gray-600">
+                Volume sold — {reportPeriodLabel}
+              </p>
+              <p className="text-lg font-semibold text-gray-900">
+                {formatNumber(
+                  filteredTrendRows.reduce(
+                    (sum, row) => sum + Number(row.saleVolumeKg || 0),
+                    0,
+                  ),
+                )}{" "}
+                kg
+              </p>
+            </div>
+          </div>
         );
       case "trend":
         return (
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-blue-600" />
-                Sales trend by {viewUnit(view)}
-                <Badge variant="outline">
-                  Highlighted: {reportPeriodLabel}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {chartPeriodSeries.length ? (
-                <div className="h-72 md:h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartPeriodSeries}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip />
-                      <Bar dataKey="sales" name="Sales">
-                        {chartPeriodSeries.map((entry) => (
-                          <Cell
-                            key={entry.key}
-                            fill={
-                              entry.key === activePeriod?.key
-                                ? "#1d4ed8"
-                                : "#93c5fd"
-                            }
-                          />
-                        ))}
-                      </Bar>
-                      <Bar dataKey="target" fill="#94a3b8" name="Target" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500">
-                  No activity found for the selected period.
-                </div>
-              )}
+          <div>
+            {chartPeriodSeries.length ? (
+              <div className="h-64 md:h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartPeriodSeries}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Bar dataKey="sales" name="Sales" radius={[4, 4, 0, 0]}>
+                      {chartPeriodSeries.map((entry) => (
+                        <Cell
+                          key={entry.key}
+                          fill={
+                            entry.key === activePeriod?.key
+                              ? "#2563eb"
+                              : "#bfdbfe"
+                          }
+                        />
+                      ))}
+                    </Bar>
+                    <Bar
+                      dataKey="target"
+                      fill="#e2e8f0"
+                      name="Target"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
+                No activity found for the selected period.
+              </div>
+            )}
 
-              {activePeriod && filteredTrendRows.length > 0 && (
-                <div className="mt-6 border-t border-gray-100 pt-5">
-                  <h3 className="mb-4 text-sm font-semibold text-gray-900">
-                    Detailed breakdown &mdash; {reportPeriodLabel}
-                  </h3>
-
-                  <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-lg bg-blue-50 p-3">
-                      <p className="text-xs font-medium text-blue-700">
-                        Sales Value
-                      </p>
-                      <p className="mt-1 text-lg font-semibold text-blue-900">
-                        {formatCurrency(totals.saleValue)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-gray-50 p-3">
-                      <p className="text-xs font-medium text-gray-600">
-                        Target Value
-                      </p>
-                      <p className="mt-1 text-lg font-semibold text-gray-900">
-                        {formatCurrency(totals.targetValue)}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Achievement {formatPct(totals.achievement)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-gray-50 p-3">
-                      <p className="text-xs font-medium text-gray-600">
-                        Volume Sold
-                      </p>
-                      <p className="mt-1 text-lg font-semibold text-gray-900">
-                        {formatNumber(
-                          filteredTrendRows.reduce(
-                            (sum, row) => sum + Number(row.saleVolumeKg || 0),
-                            0,
-                          ),
-                        )}{" "}
-                        kg
-                      </p>
-                    </div>
+            {activePeriod && filteredTrendRows.length > 0 && (
+              <div className="mt-5 border-t border-gray-100 pt-5">
+                <h3 className="mb-3 text-base font-semibold text-gray-900">
+                  Detailed breakdown — {reportPeriodLabel}
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg bg-blue-50 p-3">
+                    <p className="text-xs font-medium text-blue-700">
+                      Sales Value
+                    </p>
+                    <p className="mt-1 text-base font-semibold text-blue-900">
+                      {formatCurrency(totals.saleValue)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3">
+                    <p className="text-xs font-medium text-gray-600">
+                      Target Value
+                    </p>
+                    <p className="mt-1 text-base font-semibold text-gray-900">
+                      {formatCurrency(totals.targetValue)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Achievement {formatPct(totals.achievement)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3">
+                    <p className="text-xs font-medium text-gray-600">
+                      Volume Sold
+                    </p>
+                    <p className="mt-1 text-base font-semibold text-gray-900">
+                      {formatNumber(
+                        filteredTrendRows.reduce(
+                          (sum, row) => sum + Number(row.saleVolumeKg || 0),
+                          0,
+                        ),
+                      )}{" "}
+                      kg
+                    </p>
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
+          </div>
         );
       case "salesperson":
         return (
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <UserRound className="h-5 w-5 text-blue-600" />
-                {selectedReport.label}
-                <Badge variant="outline">{reportPeriodLabel}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {salespersonReport.length ? (
-                salespersonReport.map((item) => (
-                  <div
-                    key={item.salesperson}
-                    className="rounded-lg border border-gray-200 p-3"
-                  >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="font-semibold text-gray-900">
-                          {item.salesperson}
-                        </p>
-                        <p className="text-sm text-gray-500">{item.region}</p>
-                      </div>
-                      <Badge variant="secondary">
-                        {formatPct(item.valueAchievement)}
-                      </Badge>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
-                      <div>Target: {formatCurrency(item.targetValue)}</div>
-                      <div>Actual: {formatCurrency(item.saleValue)}</div>
-                      <div>
-                        Target volume: {formatNumber(item.targetVolume)} kg
-                      </div>
-                      <div>
-                        Actual volume: {formatNumber(item.saleVolume)} kg
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-gray-500">
-                  No salesperson comparison data is currently available.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ListTable
+            columns={[
+              "Salesperson",
+              "Region",
+              "Target Value",
+              "Sale Value",
+              "Value Ach.",
+              "Volume Ach.",
+            ]}
+            emptyLabel="No salesperson comparison data is currently available."
+            rows={searchedSalespersonReport.map((item) => (
+              <tr key={item.salesperson} className="hover:bg-gray-50">
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                  {item.salesperson}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                  {item.region}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">
+                  {formatCurrency(item.targetValue)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                  {formatCurrency(item.saleValue)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <AchievementBadge value={item.valueAchievement} />
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <AchievementBadge value={item.volumeAchievement} />
+                </td>
+              </tr>
+            ))}
+          />
         );
       case "product":
         return (
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-blue-600" />
-                {selectedReport.label}
-                <Badge variant="outline">{reportPeriodLabel}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {productBreakdown.length ? (
-                productBreakdown.map((item) => (
-                  <div
-                    key={item.product}
-                    className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {item.product}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {formatNumber(item.volume)} kg
-                      </p>
-                    </div>
-                    <div className="text-left sm:text-right">
-                      <p className="font-semibold text-gray-900">
-                        {formatCurrency(item.saleValue)}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Target {formatCurrency(item.targetValue)}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-gray-500">
-                  No product data available yet.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ListTable
+            columns={["Product", "Volume (kg)", "Sale Value", "Target Value"]}
+            emptyLabel="No product data available yet."
+            rows={searchedProductBreakdown.map((item) => (
+              <tr key={item.product} className="hover:bg-gray-50">
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                  {item.product}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                  {formatNumber(item.volume)} kg
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                  {formatCurrency(item.saleValue)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                  {formatCurrency(item.targetValue)}
+                </td>
+              </tr>
+            ))}
+          />
         );
       case "region":
         return (
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-blue-600" />
-                {selectedReport.label}
-                <Badge variant="outline">{reportPeriodLabel}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {regionBreakdown.length ? (
-                regionBreakdown.map((item) => (
-                  <div
-                    key={item.region}
-                    className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {item.region}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {formatNumber(item.volume)} kg
-                      </p>
-                    </div>
-                    <div className="text-left sm:text-right">
-                      <p className="font-semibold text-gray-900">
-                        {formatCurrency(item.saleValue)}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Target {formatCurrency(item.targetValue)}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-gray-500">
-                  No region breakdown available.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ListTable
+            columns={["Region", "Volume (kg)", "Sale Value", "Target Value"]}
+            emptyLabel="No region breakdown available."
+            rows={searchedRegionBreakdown.map((item) => (
+              <tr key={item.region} className="hover:bg-gray-50">
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                  {item.region}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                  {formatNumber(item.volume)} kg
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                  {formatCurrency(item.saleValue)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                  {formatCurrency(item.targetValue)}
+                </td>
+              </tr>
+            ))}
+          />
         );
       case "recovery":
         return (
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-blue-600" />
-                {selectedReport.label}
-                <Badge variant="outline">{reportPeriodLabel}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {recoveryRows.length ? (
-                recoveryRows.map((item) => (
-                  <div
-                    key={item.salesperson}
-                    className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {item.salesperson}
-                      </p>
-                      <p className="text-sm text-gray-500">{item.region}</p>
-                    </div>
-                    <div className="text-left sm:text-right">
-                      <p className="font-semibold text-gray-900">
-                        {formatCurrency(item.recoveryAmount)}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {item.recoveryCustomers} customers
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-gray-500">
-                  No recovery history available.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ListTable
+            columns={["Salesperson", "Region", "Recovery Amount", "Customers"]}
+            emptyLabel="No recovery history available."
+            rows={searchedRecoveryRows.map((item) => (
+              <tr key={item.salesperson} className="hover:bg-gray-50">
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                  {item.salesperson}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                  {item.region}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                  {formatCurrency(item.recoveryAmount)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                  {item.recoveryCustomers}
+                </td>
+              </tr>
+            ))}
+          />
         );
       default:
         return null;
@@ -1174,41 +1217,34 @@ export default function ReportsPage() {
     <ProtectedRoute>
       <DashboardLayout>
         <div className="space-y-5">
+          {/* Page header */}
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-                Reports & Forecasting
+              <h1 className="text-lg font-semibold text-gray-900">
+                Reports &amp; Forecasting
               </h1>
-              <p className="mt-1 text-sm text-gray-600">
-                Review sales performance, recovery, targets, and forecasts for
-                the selected reporting period.
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{viewLabel(view)}</Badge>
-                <Badge variant="outline">
-                  Report period: {reportPeriodLabel}
-                </Badge>
-              </div>
             </div>
-            <div className="flex max-w-full flex-wrap items-center gap-3">
-              <Tabs
-                value={view}
-                onValueChange={setView}
-                className="w-full sm:w-auto"
-              >
+            <div className="flex max-w-full flex-wrap items-center gap-2">
+              <Tabs value={view} onValueChange={setView}>
                 <TabsList>
-                  <TabsTrigger value="monthly">Monthly</TabsTrigger>
-                  <TabsTrigger value="quarterly">Quarterly</TabsTrigger>
-                  <TabsTrigger value="yearly">Annual</TabsTrigger>
+                  <TabsTrigger value="monthly" className="text-xs">
+                    Monthly
+                  </TabsTrigger>
+                  <TabsTrigger value="quarterly" className="text-xs">
+                    Quarterly
+                  </TabsTrigger>
+                  <TabsTrigger value="yearly" className="text-xs">
+                    Annual
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
               <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="w-25">
+                <SelectTrigger className="w-20 text-xs">
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent>
                   {periodOptions.years.map((y) => (
-                    <SelectItem key={y} value={String(y)}>
+                    <SelectItem key={y} value={String(y)} className="text-xs">
                       {y}
                     </SelectItem>
                   ))}
@@ -1216,12 +1252,12 @@ export default function ReportsPage() {
               </Select>
               {view === "monthly" && (
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-30">
+                  <SelectTrigger className="w-24 text-xs">
                     <SelectValue placeholder="Month" />
                   </SelectTrigger>
                   <SelectContent>
                     {availableMonths.map((m) => (
-                      <SelectItem key={m} value={String(m)}>
+                      <SelectItem key={m} value={String(m)} className="text-xs">
                         {
                           monthLabel(
                             `${selectedYear}-${String(m).padStart(2, "0")}`,
@@ -1237,47 +1273,53 @@ export default function ReportsPage() {
                   value={selectedQuarter}
                   onValueChange={setSelectedQuarter}
                 >
-                  <SelectTrigger className="w-25">
+                  <SelectTrigger className="w-20 text-xs">
                     <SelectValue placeholder="Quarter" />
                   </SelectTrigger>
                   <SelectContent>
                     {availableQuarters.map((q) => (
-                      <SelectItem key={q} value={String(q)}>
+                      <SelectItem key={q} value={String(q)} className="text-xs">
                         Q{q}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
-              <Button variant="outline" className="gap-2" asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                asChild
+              >
                 <Link href="/reports/forecasting">
-                  <TrendingUp className="h-4 w-4" />
+                  <TrendingUp className="h-3.5 w-3.5" />
                   Forecasting
                 </Link>
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
+                    size="sm"
                     disabled={loading || !trendRows.length}
-                    className="gap-2 bg-blue-600 hover:bg-blue-700"
+                    className="gap-1.5 bg-blue-600 text-xs hover:bg-blue-700"
                   >
-                    <Download className="h-4 w-4" />
-                    Download as PDF
-                    <ChevronDown className="h-4 w-4" />
+                    <Download className="h-3.5 w-3.5" />
+                    Download
+                    <ChevronDown className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuContent align="end" className="w-64">
                   <DropdownMenuItem
                     onClick={generateExcel}
-                    className="gap-2 font-semibold"
+                    className="gap-2 text-xs font-semibold"
                   >
-                    <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-green-600" />
                     Export all reports (Excel)
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => generatePdf("all")}
-                    className="font-semibold"
+                    className="text-xs font-semibold"
                   >
                     All reports (full PDF)
                   </DropdownMenuItem>
@@ -1289,6 +1331,7 @@ export default function ReportsPage() {
                     <DropdownMenuItem
                       key={section.id}
                       onClick={() => generatePdf(section.id)}
+                      className="text-xs"
                     >
                       {section.label}
                     </DropdownMenuItem>
@@ -1305,7 +1348,7 @@ export default function ReportsPage() {
                 variant="outline"
                 size="sm"
                 onClick={fetchReportsData}
-                className="shrink-0 border-red-300 text-red-700 hover:bg-red-100"
+                className="shrink-0 border-red-300 text-xs text-red-700 hover:bg-red-100"
               >
                 Retry
               </Button>
@@ -1313,41 +1356,140 @@ export default function ReportsPage() {
           )}
 
           {loading ? (
-            <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+            <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
               Loading report data...
             </div>
           ) : (
             <>
-              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-2">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Reports
-                  </h2>
-                  <span className="text-xs text-gray-500">
-                    {reportSections.length} available
-                  </span>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {reportSections.map((section) => (
-                    <button
-                      key={section.id}
-                      type="button"
-                      onClick={() => setSelectedReportId(section.id)}
-                      className={`rounded-lg border px-4 py-3 text-left transition-colors ${
-                        selectedReportId === section.id
-                          ? "border-blue-600 bg-blue-600 text-white shadow-sm"
-                          : "border-gray-200 bg-white text-gray-700 hover:border-blue-200 hover:bg-blue-50"
-                      }`}
+              {/* KPI summary cards with a small trend sparkline, styled after
+                  the reference dashboard's top stat cards. */}
+              <div className="grid gap-4 sm:grid-cols-3">
+                {summaryCards.map((card) => {
+                  const CardIcon = card.icon;
+                  return (
+                    <div
+                      key={card.title}
+                      className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
                     >
-                      <span className="block text-sm font-medium leading-5">
-                        {section.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                            <CardIcon className="h-4 w-4" />
+                          </span>
+                          <span className="text-sm font-medium text-gray-600">
+                            {card.title}
+                          </span>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-xs font-normal text-gray-500"
+                        >
+                          {viewLabel(view)}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 flex items-end justify-between gap-2">
+                        <div>
+                          <p className="text-lg font-semibold text-gray-900">
+                            {card.value}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {card.detail}
+                          </p>
+                        </div>
+                        {card.trend.length > 1 && (
+                          <div className="h-10 w-24">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={card.trend}>
+                                <defs>
+                                  <linearGradient
+                                    id={`spark-${card.title}`}
+                                    x1="0"
+                                    y1="0"
+                                    x2="0"
+                                    y2="1"
+                                  >
+                                    <stop
+                                      offset="0%"
+                                      stopColor="#2563eb"
+                                      stopOpacity={0.35}
+                                    />
+                                    <stop
+                                      offset="100%"
+                                      stopColor="#2563eb"
+                                      stopOpacity={0}
+                                    />
+                                  </linearGradient>
+                                </defs>
+                                <Area
+                                  type="monotone"
+                                  dataKey="v"
+                                  stroke="#2563eb"
+                                  strokeWidth={1.5}
+                                  fill={`url(#spark-${card.title})`}
+                                />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
-              <div className="pt-1">{renderSelectedReport()}</div>
+              {/* Report panel: pill tabs to switch reports, a search box for
+                  the list-style reports, and the selected report's content. */}
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap gap-1.5">
+                    {reportSections.map((section) => {
+                      const SectionIcon =
+                        REPORT_META[section.id]?.icon || BarChart3;
+                      const isActive = selectedReportId === section.id;
+                      return (
+                        <button
+                          key={section.id}
+                          type="button"
+                          onClick={() => setSelectedReportId(section.id)}
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                            isActive
+                              ? "bg-blue-600 text-white shadow-sm"
+                              : "bg-gray-50 text-gray-600 hover:bg-blue-50 hover:text-blue-700"
+                          }`}
+                        >
+                          <SectionIcon className="h-3.5 w-3.5" />
+                          {section.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {["salesperson", "product", "region", "recovery"].includes(
+                    selectedReportId,
+                  ) && (
+                    <div className="relative w-full sm:w-56">
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                      <Input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder={`Search ${REPORT_META[selectedReportId]?.entity || "rows"}`}
+                        className="h-8 pl-8 text-xs"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="mb-3 mt-4 flex items-center justify-between gap-2">
+                  <h2 className="text-base font-semibold text-gray-900">
+                    {selectedReport.label}
+                  </h2>
+                  <Badge variant="outline" className="text-xs font-normal">
+                    {reportPeriodLabel}
+                  </Badge>
+                </div>
+
+                {renderSelectedReport()}
+              </div>
             </>
           )}
         </div>

@@ -13,6 +13,7 @@ import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
+import ConfirmDelete from "@/components/ConfirmDelete";
 import DirectoryForm from "@/components/forms/DirectoryForm";
 import axios from "axios";
 import {
@@ -127,7 +128,6 @@ function BusinessDirectoryContent() {
 
   // Delete a record via the API and optimistically remove it from the table.
   const handleDelete = useCallback(async (id) => {
-    if (!confirm("Are you sure you want to delete this record?")) return;
     setDeleting({ id });
     try {
       await api.delete("/directory/feed-mills/" + id);
@@ -435,20 +435,25 @@ function BusinessDirectoryContent() {
               >
                 <Edit className="w-4 h-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                onClick={() => handleDelete(recordId)}
-                disabled={deleting?.id === recordId}
-                title="Delete"
+              <ConfirmDelete
+                title="Delete record"
+                description="Are you sure you want to delete this record? This action cannot be undone."
+                onConfirm={() => handleDelete(recordId)}
               >
-                {deleting?.id === recordId ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                  disabled={deleting?.id === recordId}
+                  title="Delete"
+                >
+                  {deleting?.id === recordId ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                </Button>
+              </ConfirmDelete>
             </div>
           );
         },
@@ -638,7 +643,7 @@ function BusinessDirectoryContent() {
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-lg font-bold tracking-tight">
             Business Directory
           </h1>
         </div>
@@ -891,7 +896,7 @@ function BusinessDirectoryContent() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-semibold text-foreground">
+              <h3 className="text-base font-semibold text-foreground">
                 Import Feed Mills
               </h3>
               <button

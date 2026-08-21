@@ -38,7 +38,7 @@ import { exportToCSV } from "@/lib/csvExport";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const COLORS = ["#0066cc", "#00b4d8", "#90e0ef", "#caf0f8"];
+const COLORS = ["#0066cc", "#00b4d8", "#90e0ef", "oklch(78.9% 0.154 211.53)"];
 
 // Shared column definitions for both the Excel (CSV) and PDF export, so the
 // two formats always stay in sync with each other.
@@ -50,6 +50,16 @@ const EXPORT_COLUMNS = [
   { label: "Target (Rs)", key: "target" },
   { label: "Volume (MT)", key: "volume" },
 ];
+
+// Format a Rupee value as a compact, whole number (no decimals) so axis
+// labels, tooltips, and legends avoid ugly decimal points like "12.45M".
+// Uses Math.trunc for million values and rounds kilovalues to a whole number.
+const formatCompactRs = (v) => {
+  const n = Number(v) || 0;
+  if (n >= 1000000) return `${Math.trunc(n / 1000000)}M`;
+  if (n >= 1000) return `${Math.round(n / 1000)}K`;
+  return `${Math.round(n)}`;
+};
 
 function Dashboard() {
   const [filters, setFilters] = useState({
@@ -367,14 +377,12 @@ function Dashboard() {
         {/* Header and Filters */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Sales Dashboard
-            </h1>
+            <h1 className="text-lg font-bold text-gray-900">Sales Dashboard</h1>
             <div className="flex items-center gap-4">
               <div className="relative" ref={downloadMenuRef}>
                 <button
                   onClick={() => setDownloadMenuOpen((v) => !v)}
-                  className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                  className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-xs"
                 >
                   <Download className="w-4 h-4" />
                   Download
@@ -432,7 +440,7 @@ function Dashboard() {
             )}
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <KPICard
                 title={`Sale/${periodUnit} (Rs)`}
                 value={`${(summary.totalSaleRs / 1000000).toFixed(2)} M`}
@@ -454,14 +462,6 @@ function Dashboard() {
                 value={
                   summary.activeRegions !== undefined
                     ? summary.activeRegions.toString()
-                    : "0"
-                }
-              />
-              <KPICard
-                title="Recovery (Rs)"
-                value={
-                  summary.recovery !== undefined
-                    ? `${(summary.recovery / 1000000).toFixed(2)} M`
                     : "0"
                 }
               />
@@ -491,6 +491,7 @@ function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis
                       dataKey="label"
+                      fontSize={12}
                       stroke="#6b7280"
                       interval={0}
                       tickFormatter={(v) => {
@@ -517,11 +518,12 @@ function Dashboard() {
                       }}
                     />
                     <YAxis
+                      fontSize={12}
                       stroke="#6b7280"
                       tickFormatter={(v) =>
                         v >= 1000000
                           ? `${(v / 1000000).toFixed(1)}M`
-                          : `${(v / 1000).toFixed(0)}K`
+                          : `${(v / 1000000).toFixed(0)}M`
                       }
                     />
                     <Tooltip
@@ -552,21 +554,19 @@ function Dashboard() {
               {/* Region wise Sales */}
               <ChartCard
                 title={`Region wise Sale / ${periodUnit} (Rs)`}
-                onFormOpen={() => setActiveForm("region")}
               >
                 {regionSales.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={regionSales}>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <BarChart
+                      data={regionSales}
+                      margin={{ top: 5, right: 50, bottom: 5 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="region" stroke="#6b7280" />
+                      <XAxis dataKey="region" stroke="#6b7280" fontSize={14} />
                       <YAxis
                         stroke="#6b7280"
-                        width={90}
-                        tickFormatter={(v) =>
-                          v >= 1000000
-                            ? `${(v / 1000000).toFixed(1)}M`
-                            : `${(v / 1000).toFixed(0)}K`
-                        }
+                        width={70}
+                        tickFormatter={(v) => formatCompactRs(v)}
                         tick={{ fontSize: 11 }}
                       />
                       <Tooltip
@@ -575,6 +575,10 @@ function Dashboard() {
                           border: "1px solid #e5e7eb",
                           borderRadius: "6px",
                         }}
+                        formatter={(value, name) => [
+                          `Rs ${formatCompactRs(value)}`,
+                          name,
+                        ]}
                       />
                       <Legend />
                       <Bar dataKey="sales" fill="#0066cc" name="Actual Sales" />
@@ -591,7 +595,6 @@ function Dashboard() {
               {/* Top 3 Products */}
               <ChartCard
                 title={`Top 3 Products / ${periodUnit}`}
-                onFormOpen={() => setActiveForm("product")}
               >
                 {topProducts.length > 0 ? (
                   <div className="flex flex-col gap-4">
@@ -601,12 +604,8 @@ function Dashboard() {
                           data={topProducts}
                           cx="50%"
                           cy="50%"
-                          labelLine={false}
-                          label={({ name, percent }) =>
-                            `${name} ${(percent * 100).toFixed(0)}%`
-                          }
-                          fontSize={"15px"}
-                          outerRadius="58%"
+                          fontSize={12}
+                          outerRadius="90%"
                           fill="#8884d8"
                           dataKey="sales"
                         >
@@ -617,7 +616,7 @@ function Dashboard() {
                             />
                           ))}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip formatter={(value) => `Rs ${formatCompactRs(value)}`} />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="flex flex-wrap gap-4 justify-center">
@@ -633,11 +632,11 @@ function Dashboard() {
                             }}
                           />
                           <div className="flex flex-col">
-                            <p className="text-sm font-medium text-gray-900">
+                            <p className="text-xs font-medium text-gray-900">
                               {product.name}
                             </p>
                             <p className="text-xs text-gray-500">
-                              Rs {(product.sales / 1000000).toFixed(2)}M •{" "}
+                              Rs {formatCompactRs(product.sales)} •{" "}
                               {product.volume} MT
                             </p>
                           </div>
@@ -658,14 +657,13 @@ function Dashboard() {
               {/* Region wise Product Composition by Volume */}
               <ChartCard
                 title={`Region wise Product Comp / ${periodUnit} (Vol)`}
-                onFormOpen={() => setActiveForm("region")}
               >
                 {regionProductComparison.data.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={regionProductComparison.data}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="region" stroke="#6b7280" />
-                      <YAxis stroke="#6b7280" />
+                      <XAxis dataKey="region" stroke="#6b7280" fontSize={12} />
+                      <YAxis stroke="#6b7280" fontSize={12} />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: "#fff",
@@ -693,18 +691,19 @@ function Dashboard() {
               {/* Top 3 Salesmen */}
               <ChartCard
                 title={`Top 3 Salesmen / ${periodUnit}`}
-                onFormOpen={() => setActiveForm("salesperson")}
               >
                 {summary.topSalesmen.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={summary.topSalesmen} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis type="number" stroke="#6b7280" />
+                      <XAxis type="number" stroke="#6b7280" fontSize={14} tickFormatter={(v) => formatCompactRs(v)} />
                       <YAxis
                         dataKey="name"
                         type="category"
                         stroke="#6b7280"
                         width={120}
+                        fontSize={14}
+                        marginRight={50}
                       />
                       <Tooltip
                         contentStyle={{
@@ -712,6 +711,10 @@ function Dashboard() {
                           border: "1px solid #e5e7eb",
                           borderRadius: "6px",
                         }}
+                        formatter={(value, name) => [
+                          `Rs ${formatCompactRs(value)}`,
+                          name,
+                        ]}
                       />
                       <Bar dataKey="sales" fill="#0066cc" />
                     </BarChart>

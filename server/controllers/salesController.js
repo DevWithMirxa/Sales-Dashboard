@@ -197,6 +197,17 @@ const normalizeUnit = (raw) => {
   return hit || "bags";
 };
 
+// Parses a "Sale Date" cell. XLSX.read({ cellDates: true }) already turns
+// real Excel date cells into JS Date objects; this also tolerates a plain
+// text date string. Returns null (rather than throwing) for anything
+// unparseable, so the row still imports with saleDate left unset.
+const parseDate = (v) => {
+  if (v === null || v === undefined || v === "") return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  const parsed = new Date(v);
+  return isNaN(parsed.getTime()) ? null : parsed;
+};
+
 // Scans the first few rows for whichever one actually contains "Salesman"
 // and "Product" as column headers (tolerates a title row above the headers).
 const findHeaderRow = (matrix) => {
@@ -226,11 +237,13 @@ const findColumnIndex = (headers, keywords, excludeKeywords = []) =>
     );
   });
 
-// POST /sales/upload - accepts an .xlsx/.xls file with Salesman, Product,
-// Region, Customer, Quantity, Units, Rate, Sale Rate columns (order-
-// independent, optional title row tolerated). "Sale Rate" is treated as an
-// explicit total (same as totalAmount in the Add Sales form) and, when
-// present, wins over Quantity x Rate - exactly like computeTotal() above.
+// POST /sales/upload - accepts an .xlsx/.xls file with Sale Date, Salesman,
+// Product, Region, Customer, Quantity, Units, Rate, Total Amount columns
+// (order-independent, optional title row tolerated). "Total Amount" is
+// treated as an explicit total (same as totalAmount in the Add Sales form)
+// and, when present, wins over Quantity x Rate - exactly like computeTotal()
+// above. Sale Date is optional; when left blank the schema's own default
+// applies.
 const uploadSales = async (req, res) => {
   try {
     if (!req.file) {
@@ -266,14 +279,15 @@ const uploadSales = async (req, res) => {
 
     const { headerRowIndex, headers } = headerInfo;
     const col = {
+      saleDate: findColumnIndex(headers, ["sale", "date"]),
       salesman: findColumnIndex(headers, ["salesman"]),
       product: findColumnIndex(headers, ["product"]),
       region: findColumnIndex(headers, ["region"]),
       customer: findColumnIndex(headers, ["customer"]),
       quantity: findColumnIndex(headers, ["quantity"]),
       unit: findColumnIndex(headers, ["unit"]),
-      rate: findColumnIndex(headers, ["rate"], ["sale"]),
-      totalAmount: findColumnIndex(headers, ["sale", "rate"]),
+      rate: findColumnIndex(headers, ["rate"], ["total"]),
+      totalAmount: findColumnIndex(headers, ["total", "amount"]),
     };
 
     if (
@@ -323,8 +337,14 @@ const uploadSales = async (req, res) => {
       const quantity = toNumber(col.quantity !== -1 ? row[col.quantity] : 0);
       const rate = toNumber(col.rate !== -1 ? row[col.rate] : 0);
       const rawTotal = col.totalAmount !== -1 ? row[col.totalAmount] : null;
+      const saleDate = parseDate(
+        col.saleDate !== -1 ? row[col.saleDate] : null,
+      );
 
       docs.push({
+        // Omitted (rather than null) when blank/unparseable, so the
+        // schema's own default still applies instead of failing validation.
+        ...(saleDate ? { saleDate } : {}),
         salesman,
         product,
         customer,
@@ -370,11 +390,12 @@ const downloadSalesTemplate = async (req, res) => {
     const sample = await Sale.findOne().sort({ createdAt: -1 }).lean();
 
     // Headers are deliberately worded to match what findColumnIndex() in
-    // uploadSales looks for - "Sale Rate" contains "sale" + "rate" (so it's
-    // read as the total amount, not the per-unit Rate column), "Units"
-    // contains "unit", etc. - so a round-trip download -> fill -> upload
-    // always parses correctly.
+    // uploadSales looks for - "Sale Date" contains "sale" + "date", "Total
+    // Amount" contains "total" + "amount" (read as the total, not confused
+    // with the plain "Rate" column), "Units" contains "unit", etc. - so a
+    // round-trip download -> fill -> upload always parses correctly.
     const headers = [
+      "Sale Date",
       "Salesman",
       "Product",
       "Region",
@@ -382,11 +403,14 @@ const downloadSalesTemplate = async (req, res) => {
       "Quantity",
       "Units",
       "Rate",
-      "Sale Rate",
+      "Total Amount",
     ];
 
     const sampleRow = sample
       ? [
+          sample.saleDate
+            ? new Date(sample.saleDate).toISOString().slice(0, 10)
+            : "",
           sample.salesman || "",
           sample.product || "",
           sample.region || "",
@@ -397,6 +421,7 @@ const downloadSalesTemplate = async (req, res) => {
           sample.totalAmount || 0,
         ]
       : [
+          new Date().toISOString().slice(0, 10),
           "Dr. Imran",
           "Urea",
           "Multan",

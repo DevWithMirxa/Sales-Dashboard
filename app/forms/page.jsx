@@ -31,14 +31,14 @@ export default function FormsPortal() {
     <DashboardLayout>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Forms Portal</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-lg font-bold text-gray-900">Forms Portal</h1>
+          <p className="text-sm text-gray-600 mt-2">
             Submit data to the backend system.
           </p>
         </div>
         <button
           onClick={logout}
-          className="text-red-500 hover:underline text-sm font-semibold"
+          className="text-red-500 hover:underline text-xs font-semibold"
         >
           Logout
         </button>
@@ -50,7 +50,7 @@ export default function FormsPortal() {
           className="bg-white p-6 rounded-lg border shadow-sm cursor-pointer hover:shadow-md transition"
           onClick={() => setActiveForm("customer")}
         >
-          <h3 className="text-xl font-semibold mb-2">Customers</h3>
+          <h3 className="text-base font-semibold mb-2">Customers</h3>
           <p className="text-gray-500 text-sm">
             Add or edit customers in the system.
           </p>
@@ -60,7 +60,7 @@ export default function FormsPortal() {
           className="bg-white p-6 rounded-lg border shadow-sm cursor-pointer hover:shadow-md transition"
           onClick={() => setActiveForm("salesperson")}
         >
-          <h3 className="text-xl font-semibold mb-2">Salesmen</h3>
+          <h3 className="text-base font-semibold mb-2">Salesmen</h3>
           <p className="text-gray-500 text-sm">
             Add or manage sales representatives.
           </p>
@@ -70,7 +70,7 @@ export default function FormsPortal() {
           className="bg-white p-6 rounded-lg border shadow-sm cursor-pointer hover:shadow-md transition"
           onClick={() => setActiveForm("region")}
         >
-          <h3 className="text-xl font-semibold mb-2">Regions</h3>
+          <h3 className="text-base font-semibold mb-2">Regions</h3>
           <p className="text-gray-500 text-sm">
             Manage sales regions and territories.
           </p>
@@ -80,7 +80,7 @@ export default function FormsPortal() {
           className="bg-white p-6 rounded-lg border shadow-sm cursor-pointer hover:shadow-md transition"
           onClick={() => setActiveForm("product")}
         >
-          <h3 className="text-xl font-semibold mb-2">Products</h3>
+          <h3 className="text-base font-semibold mb-2">Products</h3>
           <p className="text-gray-500 text-sm">
             Add new products and manage inventory items.
           </p>

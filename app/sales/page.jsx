@@ -20,6 +20,7 @@ import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
+import ConfirmDelete from "@/components/ConfirmDelete";
 
 function Sales() {
   const [sales, setSales] = useState([]);
@@ -49,14 +50,12 @@ function Sales() {
   }, []);
 
   const handleDelete = async (id) => {
-    if (confirm("Are you sure you want to delete this sale?")) {
-      try {
-        await api.delete(`/sales/${id}`);
-        fetchSales();
-      } catch (error) {
-        console.error("Error deleting sale:", error);
-        alert("Failed to delete sale");
-      }
+    try {
+      await api.delete(`/sales/${id}`);
+      fetchSales();
+    } catch (error) {
+      console.error("Error deleting sale:", error);
+      alert("Failed to delete sale");
     }
   };
 
@@ -253,13 +252,18 @@ function Sales() {
             >
               <Edit2 className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => handleDelete(row.original._id)}
-              className="text-red-600 hover:text-red-900"
-              title="Delete"
+            <ConfirmDelete
+              title="Delete sale"
+              description="Are you sure you want to delete this sale? This action cannot be undone."
+              onConfirm={() => handleDelete(row.original._id)}
             >
-              <Trash2 className="w-4 h-4" />
-            </button>
+              <button
+                className="text-red-600 hover:text-red-900"
+                title="Delete"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </ConfirmDelete>
           </div>
         ),
       },
@@ -271,7 +275,7 @@ function Sales() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-wrap justify-between items-center gap-4">
-          <h1 className="text-3xl font-bold text-gray-900">Sales</h1>
+          <h1 className="text-lg font-bold text-gray-900">Sales</h1>
           <div className="flex flex-wrap items-center gap-3">
             <DownloadButton
               onExcel={handleExportExcel}
@@ -287,7 +291,7 @@ function Sales() {
             <button
               onClick={handleBrowseClick}
               disabled={uploading}
-              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60 text-xs"
             >
               {uploading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -298,7 +302,7 @@ function Sales() {
             </button>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs"
             >
               <Plus className="w-5 h-5" />
               Add Sales
@@ -336,6 +340,7 @@ function Sales() {
           loading={loading}
           emptyMessage="No sales recorded yet."
           getRowId={(row) => row._id}
+          paginate
         />
 
         {/* Browse Excel dialog - download a correctly-formatted template, or
@@ -344,7 +349,7 @@ function Sales() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
               <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-base font-semibold text-gray-900">
                   Import Sales
                 </h3>
                 <button
@@ -363,7 +368,7 @@ function Sales() {
                 <button
                   onClick={handleDownloadTemplate}
                   disabled={downloadingTemplate}
-                  className="w-full flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+                  className="w-full flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60 text-xs"
                 >
                   {downloadingTemplate ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -376,7 +381,7 @@ function Sales() {
                 </button>
                 <button
                   onClick={handleChooseUpload}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors text-xs"
                 >
                   <Upload className="w-5 h-5" />
                   Upload Excel File

@@ -20,6 +20,7 @@ import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
+import ConfirmDelete from "@/components/ConfirmDelete";
 import {
   Dialog,
   DialogContent,
@@ -56,14 +57,12 @@ function Products() {
   }, []);
 
   const handleDelete = async (id) => {
-    if (confirm("Are you sure you want to delete this product?")) {
-      try {
-        await api.delete(`/products/${id}`);
-        fetchProducts();
-      } catch (error) {
-        console.error("Error deleting product:", error);
-        alert("Failed to delete product");
-      }
+    try {
+      await api.delete(`/products/${id}`);
+      fetchProducts();
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      alert("Failed to delete product");
     }
   };
 
@@ -196,13 +195,18 @@ function Products() {
             >
               <Edit2 className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => handleDelete(row.original._id)}
-              className="text-red-600 hover:text-red-900"
-              title="Delete"
+            <ConfirmDelete
+              title="Delete product"
+              description="Are you sure you want to delete this product? This action cannot be undone."
+              onConfirm={() => handleDelete(row.original._id)}
             >
-              <Trash2 className="w-4 h-4" />
-            </button>
+              <button
+                className="text-red-600 hover:text-red-900"
+                title="Delete"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </ConfirmDelete>
           </div>
         ),
       },
@@ -214,7 +218,7 @@ function Products() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-wrap justify-between items-center gap-4">
-          <h1 className="text-3xl font-bold text-gray-900">Products</h1>
+          <h1 className="text-lg font-bold text-gray-900">Products</h1>
           <div className="flex flex-wrap items-center gap-3">
             <DownloadButton
               onExcel={handleExportExcel}
@@ -230,7 +234,7 @@ function Products() {
             <button
               onClick={() => setShowUploadDialog(true)}
               disabled={uploading}
-              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60 text-xs"
             >
               {uploading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -241,7 +245,7 @@ function Products() {
             </button>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs"
             >
               <Plus className="w-5 h-5" />
               Add Product
@@ -291,7 +295,7 @@ function Products() {
               <button
                 onClick={handleDownloadTemplate}
                 disabled={downloadingTemplate}
-                className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+                className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60 text-xs"
               >
                 {downloadingTemplate ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -304,7 +308,7 @@ function Products() {
               </button>
               <button
                 onClick={handleUploadClick}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors text-xs"
               >
                 <Upload className="w-5 h-5" />
                 Browse Excel File
@@ -319,6 +323,7 @@ function Products() {
           loading={loading}
           emptyMessage="No products found."
           getRowId={(row) => row._id}
+          paginate
         />
 
         {/* Form Modal */}

@@ -7,11 +7,28 @@ import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import DownloadButton from "@/components/DownloadButton";
-import { ArrowLeft, TrendingUp } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  ArrowLeft,
+  MapPin,
+  Package,
+  Search,
+  Target,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -160,6 +177,16 @@ function Forecasting() {
 
   // How many periods ahead to forecast - replaces the old fixed "next 4".
   const [horizon, setHorizon] = useState(4);
+
+  // Which forecast breakdown the report panel shows, and the name filter
+  // for its table - mirrors the pill tabs + search on the main Reports page.
+  const [forecastType, setForecastType] = useState("product");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const FORECAST_META = {
+    product: { icon: Package, label: "By Product", entity: "product" },
+    region: { icon: MapPin, label: "By Region", entity: "region" },
+  };
 
   const fetchForecastData = async () => {
     try {
@@ -338,6 +365,55 @@ function Forecasting() {
     );
   }, [periodSeries, selectedYear, selectedMonth, selectedQuarter, view]);
 
+  // Total (all products/regions combined) actuals for the last few periods
+  // up to the anchor, plus the projected totals for the chosen horizon -
+  // drives the combined trend chart and the KPI cards above the table.
+  const totalForecastSeries = useMemo(() => {
+    const grouped = {};
+
+    trendRows.forEach((row) => {
+      const bucket = getPeriodBucket(row.period, view);
+      if (!bucket || !anchorPeriod || bucket.sortValue > anchorPeriod.sortValue)
+        return;
+
+      if (!grouped[bucket.key]) {
+        grouped[bucket.key] = {
+          label: bucket.label,
+          sortValue: bucket.sortValue,
+          value: 0,
+        };
+      }
+      grouped[bucket.key].value += Number(row.saleValueRs || 0);
+    });
+
+    const orderedPeriods = Object.values(grouped)
+      .sort((left, right) => left.sortValue - right.sortValue)
+      .slice(-6);
+    const history = orderedPeriods.map((period) => period.value);
+    const forecast = buildForecast(history, horizon);
+    const forecastLabels = getNextPeriodLabels(anchorPeriod, view, horizon);
+
+    const chartData = [
+      ...orderedPeriods.map((period) => ({
+        label: period.label,
+        actual: period.value,
+        forecast: null,
+      })),
+      ...forecast.map((value, index) => ({
+        label: forecastLabels[index],
+        actual: null,
+        forecast: value,
+      })),
+    ];
+
+    const anchorSales = history[history.length - 1] || 0;
+    const nextForecast = forecast[0] || 0;
+    const growthPct =
+      anchorSales > 0 ? ((nextForecast - anchorSales) / anchorSales) * 100 : 0;
+
+    return { chartData, anchorSales, nextForecast, forecast, growthPct };
+  }, [trendRows, view, anchorPeriod, horizon]);
+
   const forecastProductRows = useMemo(() => {
     const grouped = {};
 
@@ -429,6 +505,28 @@ function Forecasting() {
   }, [trendRows, salesmanLookup, view, anchorPeriod, horizon]);
 
   const anchorLabel = anchorPeriod?.label || `No ${viewUnit(view)} data`;
+
+  // Search box in the report panel filters whichever forecast breakdown is
+  // currently active, by its name field.
+  const query = searchQuery.trim().toLowerCase();
+  const searchedProductRows = useMemo(
+    () =>
+      query
+        ? forecastProductRows.filter((item) =>
+            item.product.toLowerCase().includes(query),
+          )
+        : forecastProductRows,
+    [forecastProductRows, query],
+  );
+  const searchedRegionRows = useMemo(
+    () =>
+      query
+        ? forecastRegionRows.filter((item) =>
+            item.region.toLowerCase().includes(query),
+          )
+        : forecastRegionRows,
+    [forecastRegionRows, query],
+  );
 
   const generatePdf = () => {
     const doc = new jsPDF({
@@ -582,55 +680,50 @@ function Forecasting() {
     exportToCSV(rows, columns, "sales-forecasting");
   };
 
+  const activeRows =
+    forecastType === "region" ? searchedRegionRows : searchedProductRows;
+  const forecastLabels = getNextPeriodLabels(anchorPeriod, view, horizon);
+
   return (
     <ProtectedRoute>
       <DashboardLayout>
         <div className="space-y-5">
+          {/* Page header */}
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <Link
                 href="/reports"
-                className="mb-2 inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900"
+                className="mb-2 inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-3.5 w-3.5" />
                 Back to Reports
               </Link>
-              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+              <h1 className="text-lg font-semibold text-gray-900">
                 Forecasting
               </h1>
-              <p className="mt-1 text-sm text-gray-600">
-                Projected sales for the next {horizon} {viewUnit(view)}
-                {horizon === 1 ? "" : "s"}, starting from {anchorLabel}.
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{viewLabel(view)}</Badge>
-                <Badge variant="outline">Anchor: {anchorLabel}</Badge>
-                <Badge variant="outline">
-                  Horizon: {horizon} {viewUnit(view)}
-                  {horizon === 1 ? "" : "s"}
-                </Badge>
-              </div>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-              <Tabs
-                value={view}
-                onValueChange={setView}
-                className="w-full lg:w-auto"
-              >
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <Tabs value={view} onValueChange={setView}>
                 <TabsList>
-                  <TabsTrigger value="monthly">Monthly</TabsTrigger>
-                  <TabsTrigger value="quarterly">Quarterly</TabsTrigger>
-                  <TabsTrigger value="yearly">Annual</TabsTrigger>
+                  <TabsTrigger value="monthly" className="text-xs">
+                    Monthly
+                  </TabsTrigger>
+                  <TabsTrigger value="quarterly" className="text-xs">
+                    Quarterly
+                  </TabsTrigger>
+                  <TabsTrigger value="yearly" className="text-xs">
+                    Annual
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
 
               <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="w-25">
+                <SelectTrigger className="w-20 text-xs">
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent>
                   {periodOptions.years.map((y) => (
-                    <SelectItem key={y} value={String(y)}>
+                    <SelectItem key={y} value={String(y)} className="text-xs">
                       {y}
                     </SelectItem>
                   ))}
@@ -639,12 +732,12 @@ function Forecasting() {
 
               {view === "monthly" && (
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-30">
+                  <SelectTrigger className="w-24 text-xs">
                     <SelectValue placeholder="Month" />
                   </SelectTrigger>
                   <SelectContent>
                     {availableMonths.map((m) => (
-                      <SelectItem key={m} value={String(m)}>
+                      <SelectItem key={m} value={String(m)} className="text-xs">
                         {
                           monthLabel(
                             `${selectedYear}-${String(m).padStart(2, "0")}`,
@@ -661,12 +754,12 @@ function Forecasting() {
                   value={selectedQuarter}
                   onValueChange={setSelectedQuarter}
                 >
-                  <SelectTrigger className="w-25">
+                  <SelectTrigger className="w-20 text-xs">
                     <SelectValue placeholder="Quarter" />
                   </SelectTrigger>
                   <SelectContent>
                     {availableQuarters.map((q) => (
-                      <SelectItem key={q} value={String(q)}>
+                      <SelectItem key={q} value={String(q)} className="text-xs">
                         Q{q}
                       </SelectItem>
                     ))}
@@ -678,12 +771,16 @@ function Forecasting() {
                 value={String(horizon)}
                 onValueChange={(value) => setHorizon(Number(value))}
               >
-                <SelectTrigger className="w-37.5">
+                <SelectTrigger className="w-32 text-xs">
                   <SelectValue placeholder="Horizon" />
                 </SelectTrigger>
                 <SelectContent>
                   {HORIZON_OPTIONS.map((count) => (
-                    <SelectItem key={count} value={String(count)}>
+                    <SelectItem
+                      key={count}
+                      value={String(count)}
+                      className="text-xs"
+                    >
                       Next {count} {viewUnit(view)}
                       {count === 1 ? "" : "s"}
                     </SelectItem>
@@ -708,7 +805,7 @@ function Forecasting() {
                 variant="outline"
                 size="sm"
                 onClick={fetchForecastData}
-                className="shrink-0 border-red-300 text-red-700 hover:bg-red-100"
+                className="shrink-0 border-red-300 text-xs text-red-700 hover:bg-red-100"
               >
                 Retry
               </Button>
@@ -716,99 +813,231 @@ function Forecasting() {
           )}
 
           {loading ? (
-            <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+            <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
               Loading forecast data...
             </div>
           ) : (
-            <div className="grid gap-6 xl:grid-cols-2">
-              <Card className="border-gray-200 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-blue-600" />
-                    Forecasting by product (next {horizon} {viewUnit(view)}
-                    {horizon === 1 ? "" : "s"})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {forecastProductRows.length ? (
-                    forecastProductRows.map((item) => (
-                      <div
-                        key={item.product}
-                        className="rounded-lg border border-gray-200 p-3"
-                      >
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <p className="font-semibold text-gray-900">
-                            {item.product}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {item.latestPeriod}: {formatCurrency(item.history)}
-                          </p>
+            <>
+              {/* KPI cards: anchor sales, next-period forecast, growth -
+                  same layout language as the main Reports page. */}
+              <div className="grid gap-4 sm:grid-cols-3">
+                {[
+                  {
+                    title: "Anchor Sales",
+                    value: formatCurrency(totalForecastSeries.anchorSales),
+                    detail: anchorLabel,
+                    icon: Wallet,
+                  },
+                  {
+                    title: "Next Period Forecast",
+                    value: formatCurrency(totalForecastSeries.nextForecast),
+                    detail: forecastLabels[0] || "-",
+                    icon: Target,
+                  },
+                  {
+                    title: "Forecast Growth",
+                    value: `${totalForecastSeries.growthPct >= 0 ? "+" : ""}${totalForecastSeries.growthPct.toFixed(1)}%`,
+                    detail: `vs ${anchorLabel}`,
+                    icon: TrendingUp,
+                  },
+                ].map((card) => {
+                  const CardIcon = card.icon;
+                  return (
+                    <div
+                      key={card.title}
+                      className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                            <CardIcon className="h-4 w-4" />
+                          </span>
+                          <span className="text-sm font-medium text-gray-600">
+                            {card.title}
+                          </span>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {item.forecast.map((value, index) => (
-                            <Badge
-                              key={`${item.product}-${index}`}
-                              variant="secondary"
-                            >
-                              {item.forecastLabels[index]}:{" "}
-                              {formatCurrency(value)}
-                            </Badge>
-                          ))}
-                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-xs font-normal text-gray-500"
+                        >
+                          {viewLabel(view)}
+                        </Badge>
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-gray-500">
-                      No forecast history available.
+                      <p className="mt-3 text-lg font-semibold text-gray-900">
+                        {card.value}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {card.detail}
+                      </p>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  );
+                })}
+              </div>
 
-              <Card className="border-gray-200 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-blue-600" />
-                    Forecasting by region (next {horizon} {viewUnit(view)}
+              {/* Combined actual + forecast trend */}
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-base font-semibold text-gray-900">
+                    Sales trend &amp; forecast
+                  </h2>
+                  <Badge variant="outline" className="text-xs font-normal">
+                    Anchor: {anchorLabel}
+                  </Badge>
+                </div>
+                {totalForecastSeries.chartData.length ? (
+                  <div className="h-64 md:h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={totalForecastSeries.chartData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                        />
+                        <Bar
+                          dataKey="actual"
+                          name="Actual"
+                          fill="#2563eb"
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Bar
+                          dataKey="forecast"
+                          name="Forecast"
+                          fill="#bfdbfe"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
+                    No activity found for the selected anchor period.
+                  </div>
+                )}
+              </div>
+
+              {/* Report panel: pill tabs to switch between product / region
+                  forecasts, a search box, and the forecast table. */}
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(FORECAST_META).map(([id, meta]) => {
+                      const SectionIcon = meta.icon;
+                      const isActive = forecastType === id;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setForecastType(id)}
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                            isActive
+                              ? "bg-blue-600 text-white shadow-sm"
+                              : "bg-gray-50 text-gray-600 hover:bg-blue-50 hover:text-blue-700"
+                          }`}
+                        >
+                          <SectionIcon className="h-3.5 w-3.5" />
+                          {meta.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="relative w-full sm:w-56">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={`Search ${FORECAST_META[forecastType].entity}`}
+                      className="h-8 pl-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-3 mt-4 flex items-center justify-between gap-2">
+                  <h2 className="text-base font-semibold text-gray-900">
+                    Forecasting{" "}
+                    {FORECAST_META[forecastType].label.toLowerCase()} (next{" "}
+                    {horizon} {viewUnit(view)}
                     {horizon === 1 ? "" : "s"})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {forecastRegionRows.length ? (
-                    forecastRegionRows.map((item) => (
-                      <div
-                        key={item.region}
-                        className="rounded-lg border border-gray-200 p-3"
-                      >
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <p className="font-semibold text-gray-900">
-                            {item.region}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {item.latestPeriod}: {formatCurrency(item.history)}
-                          </p>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {item.forecast.map((value, index) => (
-                            <Badge
-                              key={`${item.region}-${index}`}
-                              variant="secondary"
+                  </h2>
+                  <Badge variant="outline" className="text-xs font-normal">
+                    {activeRows.length} rows
+                  </Badge>
+                </div>
+
+                {activeRows.length ? (
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-gray-200 bg-gray-50">
+                          <th className="whitespace-nowrap px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-gray-500">
+                            {forecastType === "region" ? "Region" : "Product"}
+                          </th>
+                          <th className="whitespace-nowrap px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-gray-500">
+                            Anchor Period
+                          </th>
+                          <th className="whitespace-nowrap px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-gray-500">
+                            Anchor Sales
+                          </th>
+                          {forecastLabels.map((label) => (
+                            <th
+                              key={label}
+                              className="whitespace-nowrap px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-gray-500"
                             >
-                              {item.forecastLabels[index]}:{" "}
-                              {formatCurrency(value)}
-                            </Badge>
+                              {label}
+                            </th>
                           ))}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-gray-500">
-                      No region forecast data available.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {activeRows.map((item) => {
+                          const name =
+                            forecastType === "region"
+                              ? item.region
+                              : item.product;
+                          return (
+                            <tr key={name} className="hover:bg-gray-50">
+                              <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                                {name}
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                                {item.latestPeriod}
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">
+                                {formatCurrency(item.history)}
+                              </td>
+                              {item.forecast.map((value, index) => (
+                                <td
+                                  key={index}
+                                  className="whitespace-nowrap px-4 py-3 text-sm font-medium text-blue-700"
+                                >
+                                  {formatCurrency(value)}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
+                    {forecastType === "region"
+                      ? "No region forecast data available."
+                      : "No forecast history available."}
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </DashboardLayout>

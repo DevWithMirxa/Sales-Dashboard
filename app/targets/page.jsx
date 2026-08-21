@@ -21,6 +21,7 @@ import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
+import ConfirmDelete from "@/components/ConfirmDelete";
 
 function Targets() {
   const [targets, setTargets] = useState([]);
@@ -52,24 +53,18 @@ function Targets() {
   }, []);
 
   const handleDelete = async (id) => {
-    if (confirm("Are you sure you want to delete this target assignment?")) {
-      try {
-        await api.delete(`/targets/${id}`);
-        fetchTargets();
-      } catch (error) {
-        console.error("Error deleting target:", error);
-        alert("Failed to delete target");
-      }
+    try {
+      await api.delete(`/targets/${id}`);
+      fetchTargets();
+    } catch (error) {
+      console.error("Error deleting target:", error);
+      alert("Failed to delete target");
     }
   };
 
   // Removing a single product from a target means re-saving the target with
   // that product filtered out, since products live inside the Target document.
   const handleDeleteProduct = async (target, productIndex) => {
-    if (
-      !confirm("Are you sure you want to remove this product from the target?")
-    )
-      return;
     try {
       const updatedProducts = target.products
         .filter((_, i) => i !== productIndex)
@@ -249,14 +244,18 @@ function Targets() {
       header: "Actions",
       enableSorting: false,
       cell: ({ row }) => (
-        <button
-          onClick={() =>
+        <ConfirmDelete
+          title="Remove product"
+          description="Are you sure you want to remove this product from the target?"
+          confirmLabel="Remove"
+          onConfirm={() =>
             handleDeleteProduct(target, row.original.__targetIndex)
           }
-          className="text-red-600 hover:text-red-700 font-medium"
         >
-          Remove
-        </button>
+          <button className="text-red-600 hover:text-red-700 font-medium">
+            Remove
+          </button>
+        </ConfirmDelete>
       ),
     },
   ];
@@ -297,7 +296,7 @@ function Targets() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-wrap justify-between items-center gap-4">
-          <h1 className="text-3xl font-bold text-gray-900">Sales Targets</h1>
+          <h1 className="text-lg font-bold text-gray-900">Sales Targets</h1>
           <div className="flex flex-wrap items-center gap-3">
             <DownloadButton
               onExcel={handleExportExcel}
@@ -313,7 +312,7 @@ function Targets() {
             <button
               onClick={handleBrowseClick}
               disabled={uploading}
-              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-2 py-1 rounded-lg hover:bg-gray-50 text-xs transition-colors disabled:opacity-60"
             >
               {uploading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -324,7 +323,7 @@ function Targets() {
             </button>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs"
             >
               <Plus className="w-5 h-5" />
               Assign Target
@@ -391,7 +390,7 @@ function Targets() {
                           </div>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="text-lg font-semibold text-gray-900">
+                              <h3 className="text-base font-semibold text-gray-900">
                                 {salesmanName}
                                 {target.targetName ? (
                                   <span className="ml-2 text-sm font-normal text-gray-500">
@@ -428,13 +427,18 @@ function Targets() {
                         >
                           <Edit2 className="w-5 h-5" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(target._id)}
-                          className="p-2 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
-                          title="Delete"
+                        <ConfirmDelete
+                          title="Delete target"
+                          description="Are you sure you want to delete this target assignment? This action cannot be undone."
+                          onConfirm={() => handleDelete(target._id)}
                         >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                          <button
+                            className="p-2 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </ConfirmDelete>
                         <button
                           onClick={() =>
                             setExpandedTarget(
@@ -496,7 +500,7 @@ function Targets() {
         {!loading && targets.length === 0 && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">
               No targets assigned yet
             </h3>
             <p className="text-gray-600 mb-6">
@@ -504,7 +508,7 @@ function Targets() {
             </p>
             <button
               onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors text-xs"
             >
               <Plus className="w-5 h-5" />
               Assign First Target
@@ -519,7 +523,7 @@ function Targets() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-base font-semibold text-gray-900">
                 Import Targets
               </h3>
               <button
@@ -538,7 +542,7 @@ function Targets() {
               <button
                 onClick={handleDownloadTemplate}
                 disabled={downloadingTemplate}
-                className="w-full flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+                className="w-full flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60 text-xs"
               >
                 {downloadingTemplate ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -551,7 +555,7 @@ function Targets() {
               </button>
               <button
                 onClick={handleChooseUpload}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors text-xs"
               >
                 <Upload className="w-5 h-5" />
                 Upload Excel File

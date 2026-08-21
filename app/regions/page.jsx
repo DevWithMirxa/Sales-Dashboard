@@ -9,6 +9,7 @@ import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
+import ConfirmDelete from "@/components/ConfirmDelete";
 
 function Regions() {
   const [regions, setRegions] = useState([]);
@@ -33,14 +34,12 @@ function Regions() {
   }, []);
 
   const handleDelete = async (id) => {
-    if (confirm("Are you sure you want to delete this region?")) {
-      try {
-        await api.delete(`/regions/${id}`);
-        fetchRegions();
-      } catch (error) {
-        console.error("Error deleting region:", error);
-        alert("Failed to delete region");
-      }
+    try {
+      await api.delete(`/regions/${id}`);
+      fetchRegions();
+    } catch (error) {
+      console.error("Error deleting region:", error);
+      alert("Failed to delete region");
     }
   };
 
@@ -117,7 +116,7 @@ function Regions() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Regions</h1>
+          <h1 className="text-lg font-bold text-gray-900">Regions</h1>
           <div className="flex items-center gap-3">
             <DownloadButton
               onExcel={handleExportExcel}
@@ -125,7 +124,7 @@ function Regions() {
             />
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs"
             >
               <Plus className="w-5 h-5" />
               Add Region
@@ -153,7 +152,7 @@ function Regions() {
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="text-lg font-bold text-gray-900">
+                      <h3 className="text-base font-bold text-gray-900">
                         {regionObj.region}
                       </h3>
                       <p className="text-sm text-gray-600">
@@ -169,13 +168,18 @@ function Regions() {
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(regionObj._id)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Delete"
+                      <ConfirmDelete
+                        title="Delete region"
+                        description="Are you sure you want to delete this region? This action cannot be undone."
+                        onConfirm={() => handleDelete(regionObj._id)}
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        <button
+                          className="text-red-600 hover:text-red-900"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </ConfirmDelete>
                     </div>
                   </div>
 
