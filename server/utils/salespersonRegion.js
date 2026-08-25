@@ -24,23 +24,65 @@ const tokens = (name) =>
     .filter((t) => t.length > 0)
     .filter((t) => !HONORIFICS.has(t));
 
-/**
- * True when every significant token of one name is present in the other
- * name's token set (order/suffixes like area codes are ignored).
- */
-const isNameSubset = (nameA, nameB) => {
-  const a = tokens(nameA);
-  const b = tokens(nameB);
-  if (!a.length || !b.length) return false;
-  const shorter = a.length <= b.length ? a : b;
-  const longer = new Set(a.length <= b.length ? b : a);
-  return shorter.every((t) => longer.has(t));
+// Leading title, e.g. "Dr." / "Mr." / "Mrs." - used as a tiebreaker so that
+// "Mr. Junaid" isn't misattributed to the (distinct) "Dr. Junaid".
+const titleOf = (name) => {
+  const m = String(name || "")
+    .trim()
+    .match(/^(dr|mr|mrs|ms|engr|eng|prof)(?:\s*\.)?\s/i);
+  return m ? m[1].toLowerCase() : null;
+};
+
+// Some Trend salesperson names are typos / abbreviations (from the raw source
+// files) that can never be matched to a Salesman record by name alone. Mapping
+// the EXACT Trend name to the Salesman it actually refers to lets those sales
+// be attributed to the right region instead of falling through to "Unknown".
+// Adjust / extend this map if the source data changes.
+const SALESPERSON_ALIASES = {
+  "Ameen Mati": "Mr. Ameen Matee", // typo: Mati -> Matee (Karachi)
+  "Dr. A. Rehman": "Dr. Abdul Rehman", // abbreviation (Sahiwal)
+  "Dr. Abdul Rrehman": "Dr. Abdul Rehman", // typo: double-r (Sahiwal)
+  // best-effort guess: only "Nas*" salesperson on file is Mr. Nasie Ejaz (Lahore)
+  "Mr. Nasir": "Mr. Nasie Ejaz",
 };
 
 // "Karachi (Mr. Shakeeb's slot)" -> "Karachi"
 const parseRegionTag = (salespersonName) => {
   const m = String(salespersonName || "").match(/^([^(]+?)\s*\(([^)]+)\)$/);
   return m ? m[1].trim() : null;
+};
+
+/**
+ * True when every significant token of the trend name is present in the
+ * salesman's name (or vice-versa), i.e. one is a tolerant subset of the other.
+ * Order / extra suffixes (area codes, initials) are ignored.
+ */
+const looselyMatches = (nameTokens, salesmanTokens) => {
+  if (!nameTokens.length || !salesmanTokens.length) return false;
+  const shorter =
+    nameTokens.length <= salesmanTokens.length ? nameTokens : salesmanTokens;
+  const longerSet = new Set(
+    nameTokens.length <= salesmanTokens.length ? salesmanTokens : nameTokens,
+  );
+  return shorter.every((t) => longerSet.has(t));
+};
+
+// Higher is better; lets us pick the BEST salesman when several loosely match
+// (e.g. "Mr. Junaid" vs "Dr. Junaid") instead of whichever the DB returns first.
+const scoreMatch = (nameTokens, salesmanTokens, nameTitle, salesmanTitle) => {
+  let score = 0;
+  // Identical significant tokens (title/order aside) is a near-perfect match.
+  if (
+    nameTokens.length === salesmanTokens.length &&
+    nameTokens.every((t) => salesmanTokens.includes(t))
+  ) {
+    score += 100;
+  }
+  // Matching honorific is a strong tiebreaker for legend-like names.
+  if (nameTitle && nameTitle === salesmanTitle) score += 10;
+  // Closeness: fewer extra tokens is better.
+  score += Math.max(nameTokens.length, salesmanTokens.length);
+  return score;
 };
 
 // salesperson name -> region string (never undefined; falls back to "Unknown")
@@ -57,13 +99,51 @@ const getSalespersonRegionMap = async () => {
       map[sp] = tag;
       return;
     }
+
+    // Resolve through an explicit alias first (typos/abbreviations can never be
+    // matched by name alone), otherwise fall back to tolerant name matching.
+    const aliasName = SALESPERSON_ALIASES[sp];
+    const targetName = aliasName || sp;
+    const nameTokens = tokens(targetName);
+    const nameTitle = titleOf(targetName);
+
     let area = null;
-    for (const s of salesmen) {
-      if (isNameSubset(s.name, sp)) {
-        area = s.area || null;
-        break;
+
+    // Fast path: an alias points at an exact Salesman name.
+    if (aliasName) {
+      const exact = salesmen.find(
+        (s) =>
+          String(s.name).trim().toLowerCase() ===
+          String(aliasName).trim().toLowerCase(),
+      );
+      if (exact) {
+        map[sp] = exact.area || "Unknown";
+        return;
       }
     }
+
+    // Best-match: pick the salesman that scores highest (preferring an exact
+    // name / matching title) rather than just the first loose match in the DB.
+    if (nameTokens.length) {
+      let best = null;
+      let bestScore = -1;
+      for (const s of salesmen) {
+        const salesmanTokens = tokens(s.name);
+        if (!looselyMatches(nameTokens, salesmanTokens)) continue;
+        const score = scoreMatch(
+          nameTokens,
+          salesmanTokens,
+          nameTitle,
+          titleOf(s.name),
+        );
+        if (score > bestScore) {
+          bestScore = score;
+          best = s;
+        }
+      }
+      area = best ? best.area : null;
+    }
+
     map[sp] = area || "Unknown";
   });
   return map;

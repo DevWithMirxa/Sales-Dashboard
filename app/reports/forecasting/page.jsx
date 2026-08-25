@@ -161,6 +161,85 @@ const buildForecast = (historyValues, count) => {
 
 const HORIZON_OPTIONS = [1, 2, 3, 4, 6, 8, 12];
 
+// ---- Salesperson -> region resolution (mirrors server/utils/salespersonRegion.js) ----
+// The Trend records store the salesperson as a plain string with no region, while
+// the Salesmen collection carries { name, area }. Because the raw Trend names are
+// sometimes typos/abbreviations, we resolve each one to the best-matching salesman's
+// area (preferring a matching honorific) rather than relying on an exact match.
+const HONORIFICS = new Set(["dr", "mr", "mrs", "ms", "engr", "eng", "prof"]);
+
+const nameTokens = (name) =>
+  String(name || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 0)
+    .filter((t) => !HONORIFICS.has(t));
+
+const titleOf = (name) => {
+  const m = String(name || "")
+    .trim()
+    .match(/^(dr|mr|mrs|ms|engr|eng|prof)(?:\s*\.)?\s/i);
+  return m ? m[1].toLowerCase() : null;
+};
+
+// These names are typos/abbreviations found in the raw Trend source files that can
+// never be matched to a Salesman by name alone. Keep in sync with the server map.
+const SALESPERSON_ALIASES = {
+  "Ameen Mati": "Mr. Ameen Matee", // typo: Mati -> Matee (Karachi)
+  "Dr. A. Rehman": "Dr. Abdul Rehman", // abbreviation (Sahiwal)
+  "Dr. Abdul Rrehman": "Dr. Abdul Rehman", // typo: double-r (Sahiwal)
+  "Mr. Nasir": "Mr. Nasie Ejaz", // best-effort guess (Lahore)
+};
+
+const looselyMatches = (a, b) =>
+  a.length > 0 &&
+  b.length > 0 &&
+  (a.length <= b.length
+    ? a.every((t) => b.includes(t))
+    : b.every((t) => a.includes(t)));
+
+const scoreMatch = (nameTok, salesmanTok, nameTitle, salesmanTitle) => {
+  let score = 0;
+  if (
+    nameTok.length === salesmanTok.length &&
+    nameTok.every((t) => salesmanTok.includes(t))
+  ) {
+    score += 100;
+  }
+  if (nameTitle && nameTitle === salesmanTitle) score += 10;
+  score += Math.max(nameTok.length, salesmanTok.length);
+  return score;
+};
+
+const resolveSalespersonToSalesman = (name, salesmen) => {
+  const alias = SALESPERSON_ALIASES[name];
+  const target = alias || name;
+  const lower = (s) => String(s || "").toLowerCase();
+  const match = (salesmen || []).find(
+    (s) => lower(s.name) === lower(target),
+  );
+  if (match) return match;
+
+  const nameTok = nameTokens(name);
+  const nameTitle = titleOf(name);
+  if (!nameTok.length) return null;
+  let best = null;
+  let bestScore = -1;
+  (salesmen || []).forEach((s) => {
+    const sTok = nameTokens(s.name);
+    if (!looselyMatches(nameTok, sTok)) return;
+    const score = scoreMatch(nameTok, sTok, nameTitle, titleOf(s.name));
+    if (score > bestScore) {
+      bestScore = score;
+      best = s;
+    }
+  });
+  return best;
+};
+
+const resolveRegion = (name, salesmen) =>
+  resolveSalespersonToSalesman(name, salesmen)?.area || "Unknown";
+
 function Forecasting() {
   const [view, setView] = useState("monthly");
   const [loading, setLoading] = useState(true);
@@ -232,12 +311,6 @@ function Forecasting() {
   useEffect(() => {
     fetchForecastData();
   }, []);
-
-  const salesmanLookup = useMemo(() => {
-    return new Map(
-      (salesmen || []).map((salesman) => [salesman.name, salesman]),
-    );
-  }, [salesmen]);
 
   // Every actual period present in the data, bucketed by the current view -
   // drives both the anchor dropdowns and which periods count as "history".
@@ -469,7 +542,7 @@ function Forecasting() {
       if (!bucket || !anchorPeriod || bucket.sortValue > anchorPeriod.sortValue)
         return;
 
-      const region = salesmanLookup.get(row.salesperson)?.area || "Unknown";
+      const region = resolveRegion(row.salesperson, salesmen);
       if (!grouped[region]) grouped[region] = {};
 
       if (!grouped[region][bucket.key]) {
@@ -502,7 +575,7 @@ function Forecasting() {
         };
       })
       .sort((left, right) => right.history - left.history);
-  }, [trendRows, salesmanLookup, view, anchorPeriod, horizon]);
+  }, [trendRows, salesmen, view, anchorPeriod, horizon]);
 
   const anchorLabel = anchorPeriod?.label || `No ${viewUnit(view)} data`;
 

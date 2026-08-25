@@ -21,6 +21,7 @@ import {
 import {
   BarChart3,
   Download,
+  GitCompare,
   MapPin,
   Package,
   Search,
@@ -54,13 +55,13 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const formatCurrency = (value) =>
-  typeof value === "number" ? `Rs ${value.toLocaleString("en-US")}` : "Rs 0";
+  typeof value === "number" ? ` ${value.toLocaleString("en-US")}` : "Rs 0";
 
 const formatNumber = (value) =>
   typeof value === "number" ? value.toLocaleString("en-US") : "0";
 
 const formatPct = (value) =>
-  typeof value === "number" ? `${value.toFixed(1)}%` : "0.0%";
+  typeof value === "number" ? `${value.toFixed(1)}` : "0.0%";
 
 // Shared columns for the all-in-one Excel export of the Reports page.
 const REPORT_EXPORT_COLUMNS = [
@@ -140,6 +141,89 @@ const getPeriodBucket = (period, view) => {
   };
 };
 
+// ---- Salesperson -> region resolution (mirrors server/utils/salespersonRegion.js) ----
+// The Trend records store the salesperson as a plain string with no region, while
+// the Salesmen collection carries { name, area }. Because the raw Trend names are
+// sometimes typos/abbreviations, we resolve each one to the best-matching salesman's
+// area (preferring a matching honorific) rather than relying on an exact match.
+const HONORIFICS = new Set(["dr", "mr", "mrs", "ms", "engr", "eng", "prof"]);
+
+const nameTokens = (name) =>
+  String(name || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 0)
+    .filter((t) => !HONORIFICS.has(t));
+
+const titleOf = (name) => {
+  const m = String(name || "")
+    .trim()
+    .match(/^(dr|mr|mrs|ms|engr|eng|prof)(?:\s*\.)?\s/i);
+  return m ? m[1].toLowerCase() : null;
+};
+
+// These names are typos/abbreviations found in the raw Trend source files that can
+// never be matched to a Salesman by name alone. Keep in sync with the server map.
+const SALESPERSON_ALIASES = {
+  "Ameen Mati": "Mr. Ameen Matee", // typo: Mati -> Matee (Karachi)
+  "Dr. A. Rehman": "Dr. Abdul Rehman", // abbreviation (Sahiwal)
+  "Dr. Abdul Rrehman": "Dr. Abdul Rehman", // typo: double-r (Sahiwal)
+  "Mr. Nasir": "Mr. Nasie Ejaz", // best-effort guess (Lahore)
+};
+
+const looselyMatches = (a, b) =>
+  a.length > 0 &&
+  b.length > 0 &&
+  (a.length <= b.length
+    ? a.every((t) => b.includes(t))
+    : b.every((t) => a.includes(t)));
+
+const scoreMatch = (nameTok, salesmanTok, nameTitle, salesmanTitle) => {
+  let score = 0;
+  if (
+    nameTok.length === salesmanTok.length &&
+    nameTok.every((t) => salesmanTok.includes(t))
+  ) {
+    score += 100;
+  }
+  if (nameTitle && nameTitle === salesmanTitle) score += 10;
+  score += Math.max(nameTok.length, salesmanTok.length);
+  return score;
+};
+
+// Resolves a Trend salesperson name to the Salesman it refers to, honoring
+// explicit aliases first and falling back to a tolerant best-name match that
+// prefers a matching honorific (fixes the "Mr. Junaid" vs "Dr. Junaid" clash).
+const resolveSalespersonToSalesman = (name, salesmen) => {
+  const alias = SALESPERSON_ALIASES[name];
+  const target = alias || name;
+
+  // Exact match (alias target, or letter/period/case-insensitive exact name)
+  const lower = (s) => String(s || "").toLowerCase();
+  const match = (salesmen || []).find((s) => lower(s.name) === lower(target));
+  if (match) return match;
+
+  // Tolerant best-match across all salesmen
+  const nameTok = nameTokens(name);
+  const nameTitle = titleOf(name);
+  if (!nameTok.length) return null;
+  let best = null;
+  let bestScore = -1;
+  (salesmen || []).forEach((s) => {
+    const sTok = nameTokens(s.name);
+    if (!looselyMatches(nameTok, sTok)) return;
+    const score = scoreMatch(nameTok, sTok, nameTitle, titleOf(s.name));
+    if (score > bestScore) {
+      bestScore = score;
+      best = s;
+    }
+  });
+  return best;
+};
+
+const resolveRegion = (name, salesmen) =>
+  resolveSalespersonToSalesman(name, salesmen)?.area || "Unknown";
+
 export default function ReportsPage() {
   const [view, setView] = useState("monthly");
   const [loading, setLoading] = useState(true);
@@ -207,12 +291,6 @@ export default function ReportsPage() {
   useEffect(() => {
     fetchReportsData();
   }, []);
-
-  const salesmanLookup = useMemo(() => {
-    return new Map(
-      (salesmen || []).map((salesman) => [salesman.name, salesman]),
-    );
-  }, [salesmen]);
 
   const periodOptions = useMemo(() => {
     const periods = [
@@ -377,7 +455,7 @@ export default function ReportsPage() {
           saleValue: 0,
           targetVolume: 0,
           saleVolume: 0,
-          region: salesmanLookup.get(name)?.area || "Unknown",
+          region: resolveRegion(name, salesmen),
         };
       }
 
@@ -398,7 +476,7 @@ export default function ReportsPage() {
             : 0,
       }))
       .sort((left, right) => right.saleValue - left.saleValue);
-  }, [filteredTrendRows, salesmanLookup]);
+  }, [filteredTrendRows, salesmen]);
 
   const productBreakdown = useMemo(() => {
     const groups = {};
@@ -428,7 +506,7 @@ export default function ReportsPage() {
     const groups = {};
 
     filteredTrendRows.forEach((row) => {
-      const region = salesmanLookup.get(row.salesperson)?.area || "Unknown";
+      const region = resolveRegion(row.salesperson, salesmen);
       if (!groups[region]) {
         groups[region] = {
           region,
@@ -446,7 +524,7 @@ export default function ReportsPage() {
     return Object.values(groups).sort(
       (left, right) => right.saleValue - left.saleValue,
     );
-  }, [filteredTrendRows, salesmanLookup]);
+  }, [filteredTrendRows, salesmen]);
 
   const recoveryRows = useMemo(() => {
     return (salesmen || [])
@@ -557,7 +635,7 @@ export default function ReportsPage() {
         label: "Summary",
         fileSlug: "summary",
         render: (doc, ctx) => {
-          ctx.addSectionTitle(doc, ctx, `Summary - ${reportPeriodLabel}`);
+          ctx.addSectionTitle(doc, ctx, `Summary - ${reportPeriodRLabel}`);
           ctx.addTable(
             doc,
             ctx,
@@ -629,12 +707,12 @@ export default function ReportsPage() {
               [
                 "Salesperson",
                 "Region",
-                "Target Value",
-                "Sale Value",
-                "Value Ach.",
+                "Target Value (Rs)",
+                "Sale Value (Rs)",
+                "Value Ach %",
                 "Target Vol (kg)",
                 "Sale Vol (kg)",
-                "Vol Ach.",
+                "Vol Ach %",
               ],
               salespersonReport.map((item) => [
                 item.salesperson,
@@ -670,7 +748,12 @@ export default function ReportsPage() {
             ctx.addTable(
               doc,
               ctx,
-              ["Product", "Volume (kg)", "Sale Value", "Target Value"],
+              [
+                "Product",
+                "Volume (kg)",
+                "Sale Value (Rs)",
+                "Target Value (Rs)",
+              ],
               productBreakdown.map((item) => [
                 item.product,
                 formatNumber(item.volume),
@@ -697,7 +780,7 @@ export default function ReportsPage() {
             ctx.addTable(
               doc,
               ctx,
-              ["Region", "Volume (kg)", "Sale Value", "Target Value"],
+              ["Region", "Volume (kg)", "Sale Value (Rs)", "Target Value (Rs)"],
               regionBreakdown.map((item) => [
                 item.region,
                 formatNumber(item.volume),
@@ -1075,7 +1158,7 @@ export default function ReportsPage() {
                   </div>
                   <div className="rounded-lg bg-gray-50 p-3">
                     <p className="text-xs font-medium text-gray-600">
-                      Target Value
+                      Target Value (Rs)
                     </p>
                     <p className="mt-1 text-base font-semibold text-gray-900">
                       {formatCurrency(totals.targetValue)}
@@ -1109,10 +1192,10 @@ export default function ReportsPage() {
             columns={[
               "Salesperson",
               "Region",
-              "Target Value",
-              "Sale Value",
-              "Value Ach.",
-              "Volume Ach.",
+              "Target Value (Rs)",
+              "Sale Value (Rs)",
+              "Value Ach %",
+              "Volume Ach %",
             ]}
             emptyLabel="No salesperson comparison data is currently available."
             rows={searchedSalespersonReport.map((item) => (
@@ -1142,7 +1225,12 @@ export default function ReportsPage() {
       case "product":
         return (
           <ListTable
-            columns={["Product", "Volume (kg)", "Sale Value", "Target Value"]}
+            columns={[
+              "Product",
+              "Volume (kg)",
+              "Sale Value (Rs)",
+              "Target Value",
+            ]}
             emptyLabel="No product data available yet."
             rows={searchedProductBreakdown.map((item) => (
               <tr key={item.product} className="hover:bg-gray-50">
@@ -1165,7 +1253,12 @@ export default function ReportsPage() {
       case "region":
         return (
           <ListTable
-            columns={["Region", "Volume (kg)", "Sale Value", "Target Value"]}
+            columns={[
+              "Region",
+              "Volume (kg)",
+              "Sale Value (Rs)",
+              "Target Value (Rs)",
+            ]}
             emptyLabel="No region breakdown available."
             rows={searchedRegionBreakdown.map((item) => (
               <tr key={item.region} className="hover:bg-gray-50">
@@ -1467,14 +1560,35 @@ export default function ReportsPage() {
                   {["salesperson", "product", "region", "recovery"].includes(
                     selectedReportId,
                   ) && (
-                    <div className="relative w-full sm:w-56">
-                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-                      <Input
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder={`Search ${REPORT_META[selectedReportId]?.entity || "rows"}`}
-                        className="h-8 pl-8 text-xs"
-                      />
+                    <div className="flex items-center gap-2">
+                      <div className="relative w-full sm:w-56">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                        <Input
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder={`Search ${REPORT_META[selectedReportId]?.entity || "rows"}`}
+                          className="h-8 pl-8 text-xs"
+                        />
+                      </div>
+                      {["salesperson", "product"].includes(
+                        selectedReportId,
+                      ) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5 text-xs"
+                          asChild
+                        >
+                          <Link
+                            href={`/reports/performance-flow?type=${selectedReportId}&view=${view}${
+                              selectedYear ? `&year=${selectedYear}` : ""
+                            }`}
+                          >
+                            <GitCompare className="h-3.5 w-3.5" />
+                            Graph
+                          </Link>
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

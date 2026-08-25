@@ -20,15 +20,16 @@ import { cn } from "@/lib/utils";
 // Field definitions mirror the columns shown in the Feed Mills table.
 const FEED_MILL_FIELDS = [
   { name: "feedMillName", label: "Feed Mill Name", required: true },
-  { name: "millOwner", label: "Mill Owner" },
+  { name: "millOwner", label: "Owner" },
+  { name: "ownerContact", label: "Owner's Contact" },
   { name: "districtRegion", label: "District / Region" },
   { name: "millAddress", label: "Mill Address", type: "textarea" },
   { name: "officeAddress", label: "Office Address", type: "textarea" },
   { name: "millPhones", label: "Mill Phone(s)" },
   { name: "officePhones", label: "Office Phone(s)" },
   { name: "email", label: "Email", type: "email" },
-  { name: "productionCapacity", label: "Production Capacity" },
-  { name: "bagsPerMonth", label: "Bags / Month" },
+  { name: "productionCapacity", label: "Capacity (MT / Hour)" },
+  { name: "bagsPerMonth", label: "Production (Bags / Month)" },
 ];
 
 let contactKeySeq = 0;

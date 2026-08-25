@@ -22,6 +22,7 @@ const feedMillSchema = new mongoose.Schema(
     feedMillName: { type: String, required: true, trim: true },
     districtRegion: { type: String, trim: true },
     millOwner: { type: String, trim: true },
+    ownerContact: { type: String, trim: true, default: null },
     millAddress: { type: String, trim: true },
     millPhones: { type: String, trim: true, default: null },
     officeAddress: { type: String, trim: true },

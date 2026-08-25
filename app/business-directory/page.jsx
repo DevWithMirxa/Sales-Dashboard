@@ -421,6 +421,10 @@ function BusinessDirectoryContent() {
         id: "actions",
         header: "",
         enableSorting: false,
+        meta: {
+          headerClassName: "w-[80px]",
+          cellClassName: "w-[80px]",
+        },
         cell: ({ row }) => {
           const record = row.original;
           const recordId = record._id || record.id;
@@ -440,19 +444,21 @@ function BusinessDirectoryContent() {
                 description="Are you sure you want to delete this record? This action cannot be undone."
                 onConfirm={() => handleDelete(recordId)}
               >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                  disabled={deleting?.id === recordId}
+                <button
+                  type="button"
                   title="Delete"
+                  disabled={deleting?.id === recordId}
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center",
+                    "text-red-600 hover:text-red-700 disabled:opacity-50",
+                  )}
                 >
                   {deleting?.id === recordId ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
                   ) : (
                     <Trash2 className="w-4 h-4" />
                   )}
-                </Button>
+                </button>
               </ConfirmDelete>
             </div>
           );
@@ -495,10 +501,11 @@ function BusinessDirectoryContent() {
         >
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+              <DetailItem icon={User} label="Owner" value={row.millOwner} />
               <DetailItem
-                icon={User}
-                label="Mill Owner"
-                value={row.millOwner}
+                icon={Phone}
+                label="Owner's Contact"
+                value={row.ownerContact}
               />
               <DetailItem
                 icon={MapPin}
@@ -622,9 +629,10 @@ function BusinessDirectoryContent() {
     { label: "Office Address", key: "officeAddress" },
     { label: "Mill Phones", key: "millPhones" },
     { label: "Office Phones", key: "officePhones" },
+    { label: "Owner's Contact", key: "ownerContact" },
     { label: "Mill Email", key: "email" },
-    { label: "Production Capacity", key: "productionCapacity" },
-    { label: "Bags Per Month", key: "bagsPerMonth" },
+    { label: "Capacity (MT / Hour)", key: "productionCapacity" },
+    { label: "Production (Bags / Month)", key: "bagsPerMonth" },
   ];
 
   const handleExportExcel = () => {

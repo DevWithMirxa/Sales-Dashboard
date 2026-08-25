@@ -90,9 +90,9 @@ const findColumnIndex = (headers, keywords, excludeKeywords = []) =>
   });
 
 // POST /products/upload - accepts an .xlsx/.xls file with Product Name,
-// Price (Rs/Kg), Packing (Kg) columns (order-independent, optional title row
-// tolerated). Upserts on Product Name so re-uploading updates existing
-// products instead of duplicating them.
+// Price (Rs/Kg), Packing (Kg), Origin, Supplier columns (order-independent,
+// optional title row tolerated). Upserts on Product Name so re-uploading
+// updates existing products instead of duplicating them.
 const uploadProducts = async (req, res) => {
   try {
     if (!req.file) {
@@ -131,6 +131,8 @@ const uploadProducts = async (req, res) => {
       name: findColumnIndex(headers, ["name"]),
       pricePerKg: findColumnIndex(headers, ["price"]),
       packingKg: findColumnIndex(headers, ["pack"]),
+      origin: findColumnIndex(headers, ["origin"]),
+      supplier: findColumnIndex(headers, ["supplier"]),
     };
 
     if (col.name === -1) {
@@ -170,6 +172,14 @@ const uploadProducts = async (req, res) => {
         packingKg: toNullableNumber(
           col.packingKg !== -1 ? row[col.packingKg] : null,
         ),
+        origin:
+          col.origin !== -1
+            ? String(row[col.origin] ?? "").trim() || null
+            : null,
+        supplier:
+          col.supplier !== -1
+            ? String(row[col.supplier] ?? "").trim() || null
+            : null,
       };
 
       // Upsert on Product Name so re-uploading the same product updates its
@@ -216,11 +226,23 @@ const downloadProductsTemplate = async (req, res) => {
     // Headers are deliberately worded to match what findColumnIndex() above
     // looks for - "Price (Rs/Kg)" contains "price", "Packing (Kg)" contains
     // "pack" - so a round-trip download -> fill -> upload always parses.
-    const headers = ["Product Name", "Price (Rs/Kg)", "Packing (Kg)"];
+    const headers = [
+      "Product Name",
+      "Price (Rs/Kg)",
+      "Packing (Kg)",
+      "Origin",
+      "Supplier",
+    ];
 
     const sampleRow = sample
-      ? [sample.name || "", sample.pricePerKg ?? "", sample.packingKg ?? ""]
-      : ["Betaine HCL", "625", "25"];
+      ? [
+          sample.name || "",
+          sample.pricePerKg ?? "",
+          sample.packingKg ?? "",
+          sample.origin || "",
+          sample.supplier || "",
+        ]
+      : ["Betaine HCL", "625", "25", "China", "Anavite"];
 
     const worksheet = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
     worksheet["!cols"] = headers.map(() => ({ wch: 22 }));

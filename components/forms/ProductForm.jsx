@@ -100,6 +100,8 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
     name: initial.name,
     pricePerKg: initial.pricePerKg,
     packingKg: initial.packingKg,
+    origin: initialData?.origin ?? "",
+    supplier: initialData?.supplier ?? "",
   });
   const [customProductName, setCustomProductName] = useState(
     initial.customProductName,
@@ -173,6 +175,8 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
         name: formData.name.trim(),
         pricePerKg: Number(formData.pricePerKg),
         packingKg: Number(formData.packingKg),
+        origin: formData.origin?.trim() || null,
+        supplier: formData.supplier?.trim() || null,
       };
       if (isEdit) {
         await api.put(`/products/${initialData._id}`, payload);
@@ -290,6 +294,28 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
               {errors.packingKg && (
                 <p className="text-xs text-red-600">{errors.packingKg}</p>
               )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="origin">Origin</Label>
+              <Input
+                id="origin"
+                name="origin"
+                value={formData.origin || ""}
+                onChange={handleChange}
+                placeholder="Enter country / origin"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="supplier">Supplier</Label>
+              <Input
+                id="supplier"
+                name="supplier"
+                value={formData.supplier || ""}
+                onChange={handleChange}
+                placeholder="Enter supplier name"
+              />
             </div>
           </div>
 

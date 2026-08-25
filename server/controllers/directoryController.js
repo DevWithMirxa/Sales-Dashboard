@@ -180,6 +180,7 @@ const deleteSalesTeam = async (req, res) => {
 // Not mapped from these headers: districtRegion, millOwner, srNo - these
 // stay empty on upload (districtRegion in particular means uploaded rows
 // won't show up under a specific district filter until that's populated).
+// ownerContact IS mapped from the \"Owner's Contact\" header above.
 // ---------------------------------------------------------------------------
 
 const normalizeHeader = (h) =>
@@ -226,10 +227,11 @@ const cell = (row, idx) =>
 const joinPhones = (a, b) => [a, b].filter(Boolean).join(", ");
 
 // POST /directory/feed-mills/upload - accepts an .xlsx/.xls file with Feed
-// Mill Name, Address, Contact, Mill Address, Office Address, Mill Phone(s),
-// Office Phone(s), Email, Production, Contact Name, Contact Designation,
-// Contact Department, Contact Mobile, Contact Landline, Contact Email
-// columns (order-independent, optional title row tolerated). Upserts on
+// Mill Name, Address, Owner's Contact, Mill Address, Office Address, Mill
+// Phone(s), Office Phone(s), Email, Capacity (MT / Hour), Production
+// (Bags / Month), Contact Name, Contact Designation, Contact Department,
+// Contact Mobile, Contact Landline, Contact Email columns (order-independent,
+// optional title row tolerated). Upserts on
 // Feed Mill Name so re-uploading updates existing feed mills instead of
 // duplicating them.
 const uploadFeedMills = async (req, res) => {
@@ -274,8 +276,13 @@ const uploadFeedMills = async (req, res) => {
       contact: findColumnIndex(
         headers,
         ["contact"],
-        ["name", "designation", "department", "mobile", "landline", "email"],
+        ["name", "designation", "department", "mobile", "landline", "email", "owner"],
       ),
+      // "Owner's Contact" maps to the mill owner's own phone number. It's
+      // kept separate from the generic "Contact" fallback above (which now
+      // excludes "owner" so the renamed template column doesn't get merged
+      // into millPhones by mistake).
+      ownerContact: findColumnIndex(headers, ["owner", "contact"]),
       millAddress: findColumnIndex(headers, ["mill", "address"]),
       officeAddress: findColumnIndex(headers, ["office", "address"]),
       millPhones: findColumnIndex(headers, ["mill", "phone"]),
@@ -283,7 +290,18 @@ const uploadFeedMills = async (req, res) => {
       // Excludes "Contact Email" so the mill's own email doesn't get
       // confused with the contact person's email.
       email: findColumnIndex(headers, ["email"], ["contact"]),
-      production: findColumnIndex(headers, ["production"]),
+      // "Capacity (MT / Hour)" and "Production (Bags / Month)" map to the two
+      // separate capacity/bags fields. A single legacy "Production" column is
+      // kept as a fallback so older files still upload correctly (and the
+      // new "Production (Bags / Month)" header is matched by the "bags" one
+      // below, not by this generic fallback).
+      capacity: findColumnIndex(headers, ["capacity"]),
+      bags: findColumnIndex(headers, ["bags"]),
+      production: findColumnIndex(
+        headers,
+        ["production"],
+        ["capacity", "bags"],
+      ),
       contactName: findColumnIndex(headers, ["contact", "name"]),
       contactDesignation: findColumnIndex(headers, ["contact", "designation"]),
       contactDepartment: findColumnIndex(headers, ["contact", "department"]),
@@ -325,7 +343,9 @@ const uploadFeedMills = async (req, res) => {
           ? cell(row, col.millAddress)
           : cell(row, col.plainAddress); // fallback if "Mill Address" itself is absent
 
-      const production = cell(row, col.production);
+      const capacity = cell(row, col.capacity);
+      const bags = cell(row, col.bags);
+      const productionFallback = cell(row, col.production);
 
       const contactName = cell(row, col.contactName);
       const contactDesignation = cell(row, col.contactDesignation);
@@ -344,6 +364,7 @@ const uploadFeedMills = async (req, res) => {
       const doc = {
         feedMillName,
         millAddress,
+        ownerContact: cell(row, col.ownerContact) || null,
         officeAddress: cell(row, col.officeAddress),
         millPhones: joinPhones(
           cell(row, col.millPhones),
@@ -351,8 +372,8 @@ const uploadFeedMills = async (req, res) => {
         ),
         officePhones: cell(row, col.officePhones),
         email: cell(row, col.email) || null,
-        productionCapacity: production || null,
-        bagsPerMonth: production || null,
+        productionCapacity: capacity || productionFallback || null,
+        bagsPerMonth: bags || productionFallback || null,
       };
 
       // Only touch contacts if the row actually has contact info - an empty
@@ -430,11 +451,12 @@ const downloadFeedMillsTemplate = async (req, res) => {
       "Feed Mill Name",
       "Mill Address",
       "Office Address",
-      "Contact",
+      "Owner's Contact",
       "Mill Phone(s)",
       "Office Phone(s)",
       "Email",
-      "Production",
+      "Capacity (MT / Hour)",
+      "Production (Bags / Month)",
       "Contact Name",
       "Contact Designation",
       "Contact Department",
@@ -448,11 +470,12 @@ const downloadFeedMillsTemplate = async (req, res) => {
           sample.feedMillName || "",
           sample.millAddress || "",
           sample.officeAddress || "",
-          "",
+          sample.ownerContact || "",
           sample.millPhones || "",
           sample.officePhones || "",
           sample.email || "",
-          sample.productionCapacity || sample.bagsPerMonth || "",
+          sample.productionCapacity || "",
+          sample.bagsPerMonth || "",
           primaryContact?.name || "",
           primaryContact?.designation || "",
           primaryContact?.department || "",
@@ -464,10 +487,11 @@ const downloadFeedMillsTemplate = async (req, res) => {
           "Al-Noor Feed Mill",
           "Industrial Area, Multan",
           "Main Bazaar, Multan",
-          "0300-1234567",
+          "0321-7654321",
           "042-1234567",
           "042-7654321",
           "info@alnoorfeed.com",
+          "50 MT / hour",
           "5000 bags/month",
           "Muhammad Imran",
           "Regional Sales Manager",

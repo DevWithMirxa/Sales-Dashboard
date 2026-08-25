@@ -75,6 +75,8 @@ function Products() {
     { label: "Product Name", key: "name" },
     { label: "Price (Rs/Kg)", key: "pricePerKg" },
     { label: "Packing Size (Kg)", key: "packingKg" },
+    { label: "Origin", key: "origin" },
+    { label: "Supplier", key: "supplier" },
     { label: "Status", key: "status" },
   ];
 
@@ -181,6 +183,16 @@ function Products() {
         accessorKey: "packingKg",
         header: "Packing Size (Kg)",
         cell: ({ getValue }) => `${getValue()}`,
+      },
+      {
+        accessorKey: "origin",
+        header: "Origin",
+        cell: ({ getValue }) => `${getValue() ?? ""}`,
+      },
+      {
+        accessorKey: "supplier",
+        header: "Supplier",
+        cell: ({ getValue }) => `${getValue() ?? ""}`,
       },
       {
         id: "actions",
