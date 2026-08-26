@@ -16,12 +16,26 @@ import {
   AlertCircle,
   X,
   FileDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
 import ConfirmDelete from "@/components/ConfirmDelete";
+
+// Compact a number into a short, human-friendly string, e.g.
+// 30,820,000 -> "30.82 M" and 21,700 -> "21.7 K".
+const formatCompact = (value) => {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "0";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)} K`;
+  return `${Math.round(n)}`;
+};
 
 function Targets() {
   const [targets, setTargets] = useState([]);
@@ -34,6 +48,25 @@ function Targets() {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Client-side pagination for the targets list (shown as cards).
+  const [targetPage, setTargetPage] = useState(0);
+  const [targetPageSize, setTargetPageSize] = useState(5);
+
+  const targetPageCount = Math.max(
+    1,
+    Math.ceil(targets.length / targetPageSize),
+  );
+  const pagedTargets = targets.slice(
+    targetPage * targetPageSize,
+    (targetPage + 1) * targetPageSize,
+  );
+
+  // Keep the current page valid when targets change (e.g. after a delete) or
+  // the page size changes.
+  useEffect(() => {
+    setTargetPage((prev) => Math.min(prev, targetPageCount - 1));
+  }, [targets.length, targetPageSize, targetPageCount]);
 
   const fetchTargets = async () => {
     try {
@@ -227,12 +260,12 @@ function Targets() {
     {
       accessorKey: "targetQuantity",
       header: "Target Quantity",
-      cell: ({ getValue }) => (getValue() || 0).toLocaleString(),
+      cell: ({ getValue }) => formatCompact(getValue() || 0),
     },
     {
       accessorKey: "targetRevenue",
       header: "Target Revenue (Rs)",
-      cell: ({ getValue }) => `${(getValue() || 0).toLocaleString()}`,
+      cell: ({ getValue }) => formatCompact(getValue() || 0),
       meta: { cellClassName: "font-semibold text-gray-900" },
     },
     {
@@ -247,13 +280,15 @@ function Targets() {
         <ConfirmDelete
           title="Remove product"
           description="Are you sure you want to remove this product from the target?"
-          confirmLabel="Remove"
           onConfirm={() =>
             handleDeleteProduct(target, row.original.__targetIndex)
           }
         >
-          <button className="text-red-600 hover:text-red-700 font-medium">
-            Remove
+          <button
+            className="p-2 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
+            title="Remove"
+          >
+            <Trash2 className="w-5 h-5" />
           </button>
         </ConfirmDelete>
       ),
@@ -364,8 +399,9 @@ function Targets() {
 
         {/* Targets List */}
         {!loading && (
-          <div className="space-y-4">
-            {targets.map((target) => {
+          <>
+            <div className="space-y-4">
+              {pagedTargets.map((target) => {
               const salesmanName = target.assignedTo?.name || "Unassigned";
               const salesmanInitial = salesmanName.charAt(0).toUpperCase();
               const statusConfig = getStatusConfig(target.status);
@@ -410,10 +446,10 @@ function Targets() {
                               <span>{target.products.length} Products</span>
                               <span className="font-semibold text-blue-600">
                                 Rs.{" "}
-                                {(
+                                {formatCompact(
                                   target.totalRevenue ||
-                                  calculateTotalRevenue(target.products)
-                                ).toLocaleString()}
+                                    calculateTotalRevenue(target.products),
+                                )}
                               </span>
                             </div>
                           </div>
@@ -467,6 +503,8 @@ function Targets() {
                         getRowId={(row) =>
                           row.product?._id || String(row.__targetIndex)
                         }
+                        paginate
+                        defaultPageSize={5}
                         wrapperClassName="overflow-hidden"
                       />
 
@@ -474,18 +512,18 @@ function Targets() {
                       <div className="px-6 py-4 bg-gray-100 border-t border-gray-200 flex justify-between items-center">
                         <div className="ml-24 text-sm font-semibold text-gray-900">
                           Total Quantity:{" "}
-                          {(
+                          {formatCompact(
                             target.totalQuantity ||
-                            calculateTotalQuantity(target.products)
-                          ).toLocaleString()}{" "}
+                              calculateTotalQuantity(target.products),
+                          )}{" "}
                           {target.products[0]?.unit}
                         </div>
                         <div className="mx-auto text-lg font-bold text-blue-600">
                           Total Revenue: Rs.{" "}
-                          {(
+                          {formatCompact(
                             target.totalRevenue ||
-                            calculateTotalRevenue(target.products)
-                          ).toLocaleString()}
+                              calculateTotalRevenue(target.products),
+                          )}
                         </div>
                       </div>
                     </div>
@@ -494,6 +532,74 @@ function Targets() {
               );
             })}
           </div>
+
+        
+          {targets.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <span>Targets per page</span>
+                <select
+                  value={targetPageSize}
+                  onChange={(e) => {
+                    setTargetPageSize(Number(e.target.value));
+                    setTargetPage(0);
+                  }}
+                  className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {[5, 10, 25].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                <span>
+                  {targets.length === 0
+                    ? "0 of 0 targets"
+                    : `${targetPage * targetPageSize + 1}-${Math.min(
+                        (targetPage + 1) * targetPageSize,
+                        targets.length,
+                      )} of ${targets.length} targets`}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setTargetPage(0)}
+                  disabled={targetPage === 0}
+                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setTargetPage((p) => Math.max(0, p - 1))}
+                  disabled={targetPage === 0}
+                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="px-2">
+                  Page {targetPage + 1} of {targetPageCount}
+                </span>
+                <button
+                  onClick={() =>
+                    setTargetPage((p) => Math.min(targetPageCount - 1, p + 1))
+                  }
+                  disabled={targetPage === targetPageCount - 1}
+                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setTargetPage(targetPageCount - 1)}
+                  disabled={targetPage === targetPageCount - 1}
+                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+          </>
         )}
 
         {/* Empty State */}

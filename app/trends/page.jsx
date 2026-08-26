@@ -75,10 +75,15 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-const formatNumber = (n) =>
-  n || n === 0 ? Math.round(n).toLocaleString("en-US") : "-";
-const formatRs = (n) =>
-  n || n === 0 ? ` ${Math.round(n).toLocaleString("en-US")}` : "-";
+const formatCompact = (n) => {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return "-";
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)} M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)} K`;
+  return `${Math.round(v)}`;
+};
+const formatNumber = (n) => (n || n === 0 ? formatCompact(n) : "-");
+const formatRs = (n) => (n || n === 0 ? formatCompact(n) : "-");
 const formatPct = (n) =>
   n === null || n === undefined ? "-" : `${n.toFixed(1)}`;
 
@@ -696,7 +701,7 @@ function TrendsContent() {
                   tick={{ fontSize: 11 }}
                 />
                 <YAxis
-                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                  tickFormatter={(v) => formatCompact(v)}
                   tick={{ fontSize: 11 }}
                 />
                 <Tooltip formatter={(v) => formatRs(v)} />
@@ -747,7 +752,7 @@ function TrendsContent() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="period" tick={{ fontSize: 11 }} />
                   <YAxis
-                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={(v) => formatCompact(v)}
                     tick={{ fontSize: 11 }}
                   />
                   <Tooltip formatter={(v) => formatRs(v)} />

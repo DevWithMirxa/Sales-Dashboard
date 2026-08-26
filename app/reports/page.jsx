@@ -54,11 +54,21 @@ import { ChevronDown } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// Compact a number into a short, human-friendly string, e.g.
+// 30,820,000 -> "30.82 M" and 21,700 -> "21.7 K".
+const formatCompact = (value) => {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "0";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)} K`;
+  return `${Math.round(n)}`;
+};
+
 const formatCurrency = (value) =>
-  typeof value === "number" ? ` ${value.toLocaleString("en-US")}` : "Rs 0";
+  typeof value === "number" ? formatCompact(value) : "Rs 0";
 
 const formatNumber = (value) =>
-  typeof value === "number" ? value.toLocaleString("en-US") : "0";
+  typeof value === "number" ? formatCompact(value) : "0";
 
 const formatPct = (value) =>
   typeof value === "number" ? `${value.toFixed(1)}` : "0.0%";
@@ -1113,8 +1123,12 @@ export default function ReportsPage() {
                       tick={{ fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
+                      tickFormatter={(v) => formatCompact(v)}
                     />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                      formatter={(value) => formatCompact(value)}
+                    />
                     <Bar dataKey="sales" name="Sales" radius={[4, 4, 0, 0]}>
                       {chartPeriodSeries.map((entry) => (
                         <Cell

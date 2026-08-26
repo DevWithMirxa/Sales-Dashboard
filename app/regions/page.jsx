@@ -11,6 +11,16 @@ import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
 import ConfirmDelete from "@/components/ConfirmDelete";
 
+// Compact a number into a short, human-friendly string, e.g.
+// 30,820,000 -> "30.82 M" and 21,700 -> "21.7 K".
+const formatCompact = (value) => {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "0";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)} K`;
+  return `${Math.round(n)}`;
+};
+
 function Regions() {
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -221,14 +231,13 @@ function Regions() {
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-gray-600">Monthly Sales:</span>
                         <span className="font-medium text-gray-900">
-                          Rs {((regionObj.monthlySales || 0) / 1000).toFixed(0)}
-                          K
+                          Rs {formatCompact(regionObj.monthlySales || 0)}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-gray-600">Target:</span>
                         <span className="font-medium text-gray-900">
-                          Rs {((regionObj.target || 0) / 1000).toFixed(0)}K
+                          Rs {formatCompact(regionObj.target || 0)}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">

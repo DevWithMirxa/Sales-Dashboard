@@ -22,6 +22,16 @@ import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
 import ConfirmDelete from "@/components/ConfirmDelete";
 
+// Compact a number into a short, human-friendly string, e.g.
+// 30,820,000 -> "30.82 M" and 21,700 -> "21.7 K".
+const formatCompact = (value) => {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "0";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)} K`;
+  return `${Math.round(n)}`;
+};
+
 function Sales() {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -229,7 +239,7 @@ function Sales() {
       {
         accessorKey: "totalAmount",
         header: "Total Amount (Rs)",
-        cell: ({ getValue }) => `${(getValue() || 0).toLocaleString()}`,
+        cell: ({ getValue }) => formatCompact(getValue() || 0),
         meta: {
           headerClassName: "w-[15%]",
           cellClassName: "w-[15%] font-semibold text-gray-900",

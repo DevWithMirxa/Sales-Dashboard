@@ -42,7 +42,17 @@ import autoTable from "jspdf-autotable";
 // --- Shared helpers (mirrors the equivalents in the main Reports page) ---
 
 const formatCurrency = (value) =>
-  typeof value === "number" ? `Rs ${value.toLocaleString("en-US")}` : "Rs 0";
+  typeof value === "number" ? formatCompact(value) : "Rs 0";
+
+// Compact a number into a short, human-friendly string, e.g.
+// 30,820,000 -> "30.82 M" and 21,700 -> "21.7 K".
+const formatCompact = (value) => {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "0";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)} K`;
+  return `${Math.round(n)}`;
+};
 
 const monthLabel = (period) => {
   const [year, month] = period.split("-");
@@ -215,9 +225,7 @@ const resolveSalespersonToSalesman = (name, salesmen) => {
   const alias = SALESPERSON_ALIASES[name];
   const target = alias || name;
   const lower = (s) => String(s || "").toLowerCase();
-  const match = (salesmen || []).find(
-    (s) => lower(s.name) === lower(target),
-  );
+  const match = (salesmen || []).find((s) => lower(s.name) === lower(target));
   if (match) return match;
 
   const nameTok = nameTokens(name);
@@ -972,9 +980,11 @@ function Forecasting() {
                           tick={{ fontSize: 11 }}
                           axisLine={false}
                           tickLine={false}
+                          tickFormatter={(v) => formatCompact(v)}
                         />
                         <Tooltip
                           contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                          formatter={(value) => formatCompact(value)}
                         />
                         <Bar
                           dataKey="actual"
