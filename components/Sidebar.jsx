@@ -15,6 +15,7 @@ import {
   Shield,
   PieChart,
   ShoppingCart,
+  Receipt,
   UserCog,
   ChevronDown,
 } from "lucide-react";
@@ -31,6 +32,7 @@ export default function Sidebar({ isOpen, onToggle }) {
     { icon: Box, label: "Products", href: "/products" },
     { icon: Target, label: "Targets", href: "/targets" },
     { icon: ShoppingCart, label: "Sales", href: "/sales" },
+    { icon: Receipt, label: "Recovery", href: "/recovery" },
     { icon: MapPin, label: "Regions", href: "/regions" },
     {
       icon: FolderTree,
@@ -129,9 +131,7 @@ export default function Sidebar({ isOpen, onToggle }) {
                 confirmLabel="Sign out"
                 onConfirm={handleLogout}
               >
-                <button
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
-                >
+                <button className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors">
                   <LogOut className="w-4 h-4" />
                   Sign out
                 </button>

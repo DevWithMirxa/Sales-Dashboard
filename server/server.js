@@ -40,6 +40,7 @@ app.use("/api/targets", require("./routes/targetRoutes"));
 app.use("/api/trends", require("./routes/trends"));
 app.use("/api/directory", require("./routes/directory"));
 app.use("/api/sales", require("./routes/salesRoutes"));
+app.use("/api/recovery", require("./routes/recoveryRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 
 app.get("/", (req, res) => {
