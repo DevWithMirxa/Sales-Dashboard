@@ -239,6 +239,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [trendRows, setTrendRows] = useState([]);
   const [salesmen, setSalesmen] = useState([]);
+  const [recoveries, setRecoveries] = useState([]);
   const [fetchError, setFetchError] = useState("");
   const [selectedReportId, setSelectedReportId] = useState("salesperson");
   const [selectedYear, setSelectedYear] = useState("");
@@ -265,9 +266,10 @@ export default function ReportsPage() {
       const results = await Promise.allSettled([
         api.get("/trends", { params: { limit: 50000 } }),
         api.get("/salesmen"),
+        api.get("/recovery"),
       ]);
 
-      const [trendsResult, salesmenResult] = results;
+      const [trendsResult, salesmenResult, recoveryResult] = results;
 
       if (trendsResult.status === "fulfilled") {
         setTrendRows(trendsResult.value.data.rows || []);
@@ -286,6 +288,17 @@ export default function ReportsPage() {
           prev
             ? prev
             : "Unable to load salesmen data. Check your network connection or API server.",
+        );
+      }
+
+      if (recoveryResult.status === "fulfilled") {
+        setRecoveries(recoveryResult.value.data || []);
+      } else {
+        console.error("Error loading recovery data:", recoveryResult.reason);
+        setFetchError((prev) =>
+          prev
+            ? prev
+            : "Unable to load recovery data. Check your network connection or API server.",
         );
       }
     } catch (error) {
@@ -536,16 +549,34 @@ export default function ReportsPage() {
     );
   }, [filteredTrendRows, salesmen]);
 
+  // Recovery records already carry their own region string per invoice (set
+  // when the invoice was created), so unlike the Trend-based reports above,
+  // no fuzzy salesperson->region resolution is needed here.
   const recoveryRows = useMemo(() => {
-    return (salesmen || [])
-      .map((salesman) => ({
-        salesperson: salesman.name,
-        region: salesman.area || "Unknown",
-        recoveryAmount: Number(salesman.recovery?.amount || 0),
-        recoveryCustomers: Number(salesman.recovery?.customer || 0),
-      }))
-      .sort((left, right) => right.recoveryAmount - left.recoveryAmount);
-  }, [salesmen]);
+    const grouped = {};
+
+    (recoveries || []).forEach((r) => {
+      const key = r.salesperson || "Unknown";
+      if (!grouped[key]) {
+        grouped[key] = {
+          salesperson: key,
+          region: r.region || "Unknown",
+          invoiced: 0,
+          recovered: 0,
+          outstanding: 0,
+          overdueCount: 0,
+        };
+      }
+      grouped[key].invoiced += Number(r.invoiceAmount || 0);
+      grouped[key].recovered += Number(r.amountRecovered || 0);
+      grouped[key].outstanding += Number(r.balance || 0);
+      if (r.status === "Overdue") grouped[key].overdueCount += 1;
+    });
+
+    return Object.values(grouped).sort(
+      (left, right) => right.outstanding - left.outstanding,
+    );
+  }, [recoveries]);
 
   // Search box in the report panel filters whichever list-style report is
   // currently active, by its name/label field. Card + chart reports ignore it.
@@ -596,13 +627,31 @@ export default function ReportsPage() {
       (sum, row) => sum + Number(row.targetValueRs || 0),
       0,
     );
+    // Headline "Recovery" figure is the outstanding balance - the
+    // actionable number for a recovery report - with total recovered and
+    // overdue-invoice count available as secondary detail.
     const recoveryAmount = recoveryRows.reduce(
-      (sum, row) => sum + row.recoveryAmount,
+      (sum, row) => sum + row.outstanding,
+      0,
+    );
+    const recoveryRecovered = recoveryRows.reduce(
+      (sum, row) => sum + row.recovered,
+      0,
+    );
+    const recoveryOverdueCount = recoveryRows.reduce(
+      (sum, row) => sum + row.overdueCount,
       0,
     );
     const achievement = targetValue > 0 ? (saleValue / targetValue) * 100 : 0;
 
-    return { saleValue, targetValue, recoveryAmount, achievement };
+    return {
+      saleValue,
+      targetValue,
+      recoveryAmount,
+      recoveryRecovered,
+      recoveryOverdueCount,
+      achievement,
+    };
   }, [filteredTrendRows, recoveryRows]);
 
   // Last few points of the period series, used to draw the small trend
@@ -626,11 +675,11 @@ export default function ReportsPage() {
       trend: sparklineSeries.map((p) => ({ v: p.target })),
     },
     {
-      title: "Recovery",
+      title: "Recovery Outstanding",
       value: formatCurrency(totals.recoveryAmount),
-      detail: `${recoveryRows.length} salespersons tracked`,
-      icon: TrendingUp,
-      trend: recoveryRows.slice(0, 8).map((r) => ({ v: r.recoveryAmount })),
+      detail: `${formatCurrency(totals.recoveryRecovered)} recovered · ${totals.recoveryOverdueCount} overdue`,
+      icon: Wallet,
+      trend: recoveryRows.slice(0, 8).map((r) => ({ v: r.outstanding })),
     },
   ];
 
@@ -655,7 +704,8 @@ export default function ReportsPage() {
               ["Sales Value", formatCurrency(totals.saleValue)],
               ["Target Value", formatCurrency(totals.targetValue)],
               ["Achievement", formatPct(totals.achievement)],
-              ["Recovery", formatCurrency(totals.recoveryAmount)],
+              ["Recovery Outstanding", formatCurrency(totals.recoveryAmount)],
+              ["Recovery Recovered", formatCurrency(totals.recoveryRecovered)],
               [
                 "Volume Sold",
                 `${formatNumber(
@@ -820,14 +870,18 @@ export default function ReportsPage() {
               [
                 "Salesperson",
                 "Region",
-                "Recovery Amount",
-                "Recovery Customers",
+                "Invoiced",
+                "Recovered",
+                "Outstanding",
+                "Overdue Invoices",
               ],
               recoveryRows.map((item) => [
                 item.salesperson,
                 item.region,
-                formatCurrency(item.recoveryAmount),
-                formatNumber(item.recoveryCustomers),
+                formatCurrency(item.invoiced),
+                formatCurrency(item.recovered),
+                formatCurrency(item.outstanding),
+                formatNumber(item.overdueCount),
               ]),
             );
           } else {
@@ -1010,7 +1064,7 @@ export default function ReportsPage() {
         section: "Recovery",
         name: r.salesperson,
         period: reportPeriodLabel,
-        recoveryAmount: r.recoveryAmount,
+        recoveryAmount: r.outstanding,
       })),
     ];
 
@@ -1295,7 +1349,14 @@ export default function ReportsPage() {
       case "recovery":
         return (
           <ListTable
-            columns={["Salesperson", "Region", "Recovery Amount", "Customers"]}
+            columns={[
+              "Salesperson",
+              "Region",
+              "Invoiced (Rs)",
+              "Recovered (Rs)",
+              "Outstanding (Rs)",
+              "Overdue",
+            ]}
             emptyLabel="No recovery history available."
             rows={searchedRecoveryRows.map((item) => (
               <tr key={item.salesperson} className="hover:bg-gray-50">
@@ -1305,11 +1366,23 @@ export default function ReportsPage() {
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
                   {item.region}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                  {formatCurrency(item.recoveryAmount)}
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                  {formatCurrency(item.invoiced)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {item.recoveryCustomers}
+                  {formatCurrency(item.recovered)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                  {formatCurrency(item.outstanding)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm">
+                  {item.overdueCount > 0 ? (
+                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                      {item.overdueCount}
+                    </Badge>
+                  ) : (
+                    <span className="text-gray-400">0</span>
+                  )}
                 </td>
               </tr>
             ))}

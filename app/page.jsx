@@ -104,6 +104,11 @@ function Dashboard() {
     data: [],
     products: [],
   });
+  const [recoverySummary, setRecoverySummary] = useState({
+    outstanding: 0,
+    recovered: 0,
+    overdueCount: 0,
+  });
 
   // Download dropdown (Excel / PDF)
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
@@ -169,6 +174,37 @@ function Dashboard() {
   useEffect(() => {
     fetchDashboardData(filters, breakdown);
   }, [filters, breakdown, fetchDashboardData]);
+
+  // Recovery KPI - independent of the region/product/salesperson/breakdown
+  // filters above (those drive the Trend-based figures); this always shows
+  // the current overall standing across every outstanding invoice.
+  useEffect(() => {
+    let active = true;
+    api
+      .get("/recovery")
+      .then((res) => {
+        if (!active) return;
+        const records = res.data || [];
+        const outstanding = records.reduce(
+          (sum, r) => sum + Number(r.balance || 0),
+          0,
+        );
+        const recovered = records.reduce(
+          (sum, r) => sum + Number(r.amountRecovered || 0),
+          0,
+        );
+        const overdueCount = records.filter(
+          (r) => r.status === "Overdue",
+        ).length;
+        setRecoverySummary({ outstanding, recovered, overdueCount });
+      })
+      .catch((error) =>
+        console.error("Error fetching recovery summary:", error),
+      );
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Fetch the Monthly / Quarterly / Yearly breakdown series from /trends/series
   useEffect(() => {
@@ -440,7 +476,7 @@ function Dashboard() {
             )}
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <KPICard
                 title={`Sale/${periodUnit} (Rs)`}
                 value={`${(summary.totalSaleRs / 1000000).toFixed(2)} M`}
@@ -464,6 +500,10 @@ function Dashboard() {
                     ? summary.activeRegions.toString()
                     : "0"
                 }
+              />
+              <KPICard
+                title="Recovery Outstanding (Rs)"
+                value={`${(recoverySummary.outstanding / 1000000).toFixed(2)} M`}
               />
             </div>
 
@@ -552,9 +592,7 @@ function Dashboard() {
             {/* Main Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Region wise Sales */}
-              <ChartCard
-                title={`Region wise Sale / ${periodUnit} (Rs)`}
-              >
+              <ChartCard title={`Region wise Sale / ${periodUnit} (Rs)`}>
                 {regionSales.length > 0 ? (
                   <ResponsiveContainer width="100%" height={350}>
                     <BarChart
@@ -593,9 +631,7 @@ function Dashboard() {
               </ChartCard>
 
               {/* Top 3 Products */}
-              <ChartCard
-                title={`Top 3 Products / ${periodUnit}`}
-              >
+              <ChartCard title={`Top 3 Products / ${periodUnit}`}>
                 {topProducts.length > 0 ? (
                   <div className="flex flex-col gap-4">
                     <ResponsiveContainer width="100%" height={250}>
@@ -616,7 +652,9 @@ function Dashboard() {
                             />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value) => `Rs ${formatCompactRs(value)}`} />
+                        <Tooltip
+                          formatter={(value) => `Rs ${formatCompactRs(value)}`}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="flex flex-wrap gap-4 justify-center">
@@ -689,14 +727,17 @@ function Dashboard() {
               </ChartCard>
 
               {/* Top 3 Salesmen */}
-              <ChartCard
-                title={`Top 3 Salesmen / ${periodUnit}`}
-              >
+              <ChartCard title={`Top 3 Salesmen / ${periodUnit}`}>
                 {summary.topSalesmen.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={summary.topSalesmen} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis type="number" stroke="#6b7280" fontSize={14} tickFormatter={(v) => formatCompactRs(v)} />
+                      <XAxis
+                        type="number"
+                        stroke="#6b7280"
+                        fontSize={14}
+                        tickFormatter={(v) => formatCompactRs(v)}
+                      />
                       <YAxis
                         dataKey="name"
                         type="category"
