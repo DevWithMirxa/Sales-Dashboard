@@ -565,12 +565,19 @@ export default function ReportsPage() {
           recovered: 0,
           outstanding: 0,
           overdueCount: 0,
+          maxDaysOverdue: 0,
         };
       }
       grouped[key].invoiced += Number(r.invoiceAmount || 0);
       grouped[key].recovered += Number(r.amountRecovered || 0);
       grouped[key].outstanding += Number(r.balance || 0);
       if (r.status === "Overdue") grouped[key].overdueCount += 1;
+      // Track the single oldest overdue invoice per salesperson - the
+      // group's total/average days overdue isn't meaningful once multiple
+      // invoices are combined, but "worst case currently outstanding" is.
+      if (Number(r.daysOverdue || 0) > grouped[key].maxDaysOverdue) {
+        grouped[key].maxDaysOverdue = Number(r.daysOverdue || 0);
+      }
     });
 
     return Object.values(grouped).sort(
@@ -874,6 +881,7 @@ export default function ReportsPage() {
                 "Recovered",
                 "Outstanding",
                 "Overdue Invoices",
+                "Max Days Overdue",
               ],
               recoveryRows.map((item) => [
                 item.salesperson,
@@ -882,6 +890,7 @@ export default function ReportsPage() {
                 formatCurrency(item.recovered),
                 formatCurrency(item.outstanding),
                 formatNumber(item.overdueCount),
+                formatNumber(item.maxDaysOverdue),
               ]),
             );
           } else {
@@ -1356,6 +1365,7 @@ export default function ReportsPage() {
               "Recovered (Rs)",
               "Outstanding (Rs)",
               "Overdue",
+              "Max Days Overdue",
             ]}
             emptyLabel="No recovery history available."
             rows={searchedRecoveryRows.map((item) => (
@@ -1382,6 +1392,15 @@ export default function ReportsPage() {
                     </Badge>
                   ) : (
                     <span className="text-gray-400">0</span>
+                  )}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm">
+                  {item.maxDaysOverdue > 0 ? (
+                    <span className="font-medium text-red-600">
+                      {item.maxDaysOverdue}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">-</span>
                   )}
                 </td>
               </tr>

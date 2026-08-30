@@ -15,12 +15,19 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  ChevronRight,
+  ChevronDown,
+  CalendarDays,
+  Wallet,
+  MapPin,
+  StickyNote,
 } from "lucide-react";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
 import { Badge } from "@/components/ui/badge";
+import { TableRow, TableCell } from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +45,18 @@ const STATUS_STYLES = {
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString() : "-");
 
+// Small label+value block used inside the expanded row - same idea as the
+// Business Directory page's detail grid.
+const DetailItem = ({ icon: Icon, label, value }) => (
+  <div className="flex items-start gap-2">
+    {Icon && <Icon className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />}
+    <div className="min-w-0">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="text-sm text-gray-900 wrap-break-word">{value ?? "-"}</p>
+    </div>
+  </div>
+);
+
 function Recovery() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +66,7 @@ function Recovery() {
   const [uploadMessage, setUploadMessage] = useState(null); // { type: 'success' | 'error', text }
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
   const fileInputRef = useRef(null);
 
   const fetchRecords = async () => {
@@ -81,6 +101,58 @@ function Recovery() {
     setEditingRecord(record);
     setShowForm(true);
   };
+
+  const toggleExpanded = (record) => {
+    setExpandedId((prev) => (prev === record._id ? null : record._id));
+  };
+
+  const renderRecoveryDetails = (record, colSpanCount) => (
+    <TableRow className="bg-gray-50 hover:bg-gray-50">
+      <TableCell colSpan={colSpanCount} className="px-5 py-4 whitespace-normal">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <DetailItem
+            icon={CalendarDays}
+            label="Invoice Date"
+            value={formatDate(record.invoiceDate)}
+          />
+          <DetailItem
+            icon={CalendarDays}
+            label="Due Date"
+            value={formatDate(record.dueDate)}
+          />
+          <DetailItem
+            icon={CalendarDays}
+            label="Recovery Date"
+            value={
+              record.recoveryDate
+                ? formatDate(record.recoveryDate)
+                : "Not yet recovered"
+            }
+          />
+          <DetailItem
+            icon={Wallet}
+            label="Invoice Amount (Rs)"
+            value={(record.invoiceAmount || 0).toLocaleString()}
+          />
+          <DetailItem
+            icon={Wallet}
+            label="Amount Recovered (Rs)"
+            value={(record.amountRecovered || 0).toLocaleString()}
+          />
+          <DetailItem icon={MapPin} label="Region" value={record.region} />
+          {record.notes && (
+            <div className="sm:col-span-2 lg:col-span-3">
+              <DetailItem
+                icon={StickyNote}
+                label="Notes"
+                value={record.notes}
+              />
+            </div>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
 
   const handleCloseForm = () => {
     setShowForm(false);
@@ -184,55 +256,59 @@ function Recovery() {
   const columns = useMemo(
     () => [
       {
+        id: "expand",
+        header: "",
+        enableSorting: false,
+        meta: {
+          headerClassName: "w-[5%]",
+          cellClassName: "w-[5%] text-gray-400",
+        },
+        cell: ({ row }) =>
+          expandedId === row.original._id ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          ),
+      },
+      {
         accessorKey: "invoiceNumber",
         header: "Invoice #",
         meta: {
-          headerClassName: "w-[10%]",
-          cellClassName: "w-[10%] text-gray-900 font-medium",
+          headerClassName: "w-[12%]",
+          cellClassName: "w-[12%] text-gray-900 font-medium",
         },
       },
       {
         accessorKey: "salesperson",
         header: "Salesperson",
-        meta: { headerClassName: "w-[12%]", cellClassName: "w-[12%]" },
+        meta: { headerClassName: "w-[15%]", cellClassName: "w-[15%]" },
       },
       {
         accessorKey: "customer",
         header: "Customer",
-        meta: { headerClassName: "w-[13%]", cellClassName: "w-[13%]" },
-      },
-      {
-        accessorKey: "invoiceDate",
-        header: "Invoice Date",
-        cell: ({ getValue }) => formatDate(getValue()),
-        meta: { headerClassName: "w-[8%]", cellClassName: "w-[8%]" },
-      },
-      {
-        accessorKey: "dueDate",
-        header: "Due Date",
-        cell: ({ getValue }) => formatDate(getValue()),
-        meta: { headerClassName: "w-[8%]", cellClassName: "w-[8%]" },
-      },
-      {
-        accessorKey: "invoiceAmount",
-        header: "Invoice (Rs)",
-        cell: ({ getValue }) => (getValue() || 0).toLocaleString(),
-        meta: { headerClassName: "w-[10%]", cellClassName: "w-[10%]" },
-      },
-      {
-        accessorKey: "amountRecovered",
-        header: "Recovered (Rs)",
-        cell: ({ getValue }) => (getValue() || 0).toLocaleString(),
-        meta: { headerClassName: "w-[10%]", cellClassName: "w-[10%]" },
+        meta: { headerClassName: "w-[18%]", cellClassName: "w-[18%]" },
       },
       {
         accessorKey: "balance",
         header: "Balance (Rs)",
         cell: ({ getValue }) => (getValue() || 0).toLocaleString(),
         meta: {
-          headerClassName: "w-[10%]",
-          cellClassName: "w-[10%] font-semibold text-gray-900",
+          headerClassName: "w-[13%]",
+          cellClassName: "w-[13%] font-semibold text-gray-900",
         },
+      },
+      {
+        accessorKey: "daysOverdue",
+        header: "Days Overdue",
+        cell: ({ getValue }) => {
+          const days = getValue() || 0;
+          return days > 0 ? (
+            <span className="font-medium text-red-600">{days}</span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          );
+        },
+        meta: { headerClassName: "w-[10%]", cellClassName: "w-[10%]" },
       },
       {
         accessorKey: "status",
@@ -241,24 +317,30 @@ function Recovery() {
           const status = getValue() || "Pending";
           return <Badge className={STATUS_STYLES[status]}>{status}</Badge>;
         },
-        meta: { headerClassName: "w-[9%]", cellClassName: "w-[9%]" },
+        meta: { headerClassName: "w-[12%]", cellClassName: "w-[12%]" },
       },
       {
         id: "actions",
         header: "Actions",
         enableSorting: false,
-        meta: { headerClassName: "w-[10%]", cellClassName: "w-[10%]" },
+        meta: { headerClassName: "w-[15%]", cellClassName: "w-[15%]" },
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-1.5">
             <button
-              onClick={() => handleEdit(row.original)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(row.original);
+              }}
               className="text-blue-600 hover:text-blue-900"
               title="Edit"
             >
               <Edit2 className="w-4 h-4" />
             </button>
             <button
-              onClick={() => handleDelete(row.original._id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row.original._id);
+              }}
               className="text-red-600 hover:text-red-900"
               title="Delete"
             >
@@ -268,7 +350,7 @@ function Recovery() {
         ),
       },
     ],
-    [],
+    [expandedId],
   );
 
   return (
@@ -291,10 +373,10 @@ function Recovery() {
             <button
               onClick={() => setShowUploadDialog(true)}
               disabled={uploading}
-              className="flex items-center text-sm gap-2 border border-gray-300 text-gray-700 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 text-sm px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
             >
               {uploading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Upload className="w-4 h-4" />
               )}
@@ -302,7 +384,7 @@ function Recovery() {
             </button>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 text-sm bg-blue-600 text-white px-2 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 bg-blue-600 text-white text-sm px-2 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Add Recovery
@@ -381,6 +463,13 @@ function Recovery() {
           loading={loading}
           emptyMessage="No recovery records found."
           getRowId={(row) => row._id}
+          onRowClick={toggleExpanded}
+          rowClassName="cursor-pointer"
+          renderSubRow={(record, visibleColumns) =>
+            expandedId === record._id
+              ? renderRecoveryDetails(record, visibleColumns)
+              : null
+          }
         />
 
         {/* Form Modal */}

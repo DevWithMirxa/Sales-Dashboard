@@ -1,9 +1,7 @@
 const Salesman = require("../models/Salesman");
 const Region = require("../models/Region");
 const Trend = require("../models/Trend");
-const {
-  getSalespersonRegionMap,
-} = require("../utils/salespersonRegion");
+const { getSalespersonRegionMap } = require("../utils/salespersonRegion");
 
 // No real daily/weekly granularity exists in the Trends data (it's monthly),
 // so those periods intentionally return empty results rather than a

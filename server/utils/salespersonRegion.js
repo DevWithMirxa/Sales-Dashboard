@@ -42,8 +42,8 @@ const SALESPERSON_ALIASES = {
   "Ameen Mati": "Mr. Ameen Matee", // typo: Mati -> Matee (Karachi)
   "Dr. A. Rehman": "Dr. Abdul Rehman", // abbreviation (Sahiwal)
   "Dr. Abdul Rrehman": "Dr. Abdul Rehman", // typo: double-r (Sahiwal)
-  // best-effort guess: only "Nas*" salesperson on file is Mr. Nasie Ejaz (Lahore)
-  "Mr. Nasir": "Mr. Nasie Ejaz",
+  // best-effort guess: only "Nas*" salesperson on file is Mr. Nasir Ejaz (Lahore)
+  "Mr. Nasir": "Mr. Nasir Ejaz",
 };
 
 // "Karachi (Mr. Shakeeb's slot)" -> "Karachi"
