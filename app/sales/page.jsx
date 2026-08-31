@@ -22,14 +22,12 @@ import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
 import ConfirmDelete from "@/components/ConfirmDelete";
 
-// Compact a number into a short, human-friendly string, e.g.
-// 30,820,000 -> "30.82 M" and 21,700 -> "21.7 K".
+// Compact a number into a short, human-friendly string using a single "M"
+// (millions) unit, e.g. 30,820,000 -> "30.82 M" and 21,700 -> "0.02 M".
 const formatCompact = (value) => {
   const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(n)) return "0";
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)} K`;
-  return `${Math.round(n)}`;
+  if (!Number.isFinite(n)) return "0 M";
+  return `${(n / 1_000_000).toFixed(2)} M`;
 };
 
 function Sales() {
@@ -42,6 +40,11 @@ function Sales() {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Salesman + period (month / day) filters applied client-side to the table.
+  const [filterSalesman, setFilterSalesman] = useState("all");
+  const [filterMonth, setFilterMonth] = useState("all"); // "YYYY-MM"
+  const [filterDay, setFilterDay] = useState("all"); // day of month (1-31)
 
   const fetchSales = async () => {
     try {
@@ -58,6 +61,66 @@ function Sales() {
   useEffect(() => {
     fetchSales();
   }, []);
+
+  const salesmen = useMemo(() => {
+    const map = new Map();
+    (sales || []).forEach((s) => {
+      if (s.salesman) map.set(s.salesman, s.salesman);
+    });
+    return Array.from(map.keys()).sort((a, b) => a.localeCompare(b));
+  }, [sales]);
+
+  const months = useMemo(() => {
+    const map = new Map();
+    (sales || []).forEach((s) => {
+      const d = s.saleDate ? new Date(s.saleDate) : null;
+      if (d && !isNaN(d)) {
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+          2,
+          "0",
+        )}`;
+        map.set(
+          key,
+          d.toLocaleString("en-US", { month: "short", year: "numeric" }),
+        );
+      }
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [sales]);
+
+  const days = useMemo(() => {
+    const set = new Set();
+    (sales || []).forEach((s) => {
+      const d = s.saleDate ? new Date(s.saleDate) : null;
+      if (d && !isNaN(d)) set.add(d.getDate());
+    });
+    return Array.from(set).sort((a, b) => a - b);
+  }, [sales]);
+
+  const filteredSales = useMemo(() => {
+    return (sales || []).filter((s) => {
+      if (filterSalesman !== "all" && s.salesman !== filterSalesman) {
+        return false;
+      }
+      const d = s.saleDate ? new Date(s.saleDate) : null;
+      if (d && !isNaN(d)) {
+        const monthKey = `${d.getFullYear()}-${String(
+          d.getMonth() + 1,
+        ).padStart(2, "0")}`;
+        if (filterMonth !== "all" && monthKey !== filterMonth) return false;
+        if (filterDay !== "all" && d.getDate() !== Number(filterDay)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [sales, filterSalesman, filterMonth, filterDay]);
+
+  const clearFilters = () => {
+    setFilterSalesman("all");
+    setFilterMonth("all");
+    setFilterDay("all");
+  };
 
   const handleDelete = async (id) => {
     try {
@@ -94,11 +157,11 @@ function Sales() {
   ];
 
   const handleExportExcel = () => {
-    exportToCSV(sales, saleColumns, "sales");
+    exportToCSV(filteredSales, saleColumns, "sales");
   };
 
   const handleExportPDF = () => {
-    exportToPDF(sales, saleColumns, {
+    exportToPDF(filteredSales, saleColumns, {
       title: "Sales",
       subtitle: "Sales records",
       filename: "sales",
@@ -190,8 +253,8 @@ function Sales() {
           return v ? new Date(v).toLocaleDateString() : "-";
         },
         meta: {
-          headerClassName: "w-[9%]",
-          cellClassName: "w-[9%]",
+          headerClassName: "w-[13%]",
+          cellClassName: "w-[13%]",
         },
       },
       {
@@ -222,8 +285,8 @@ function Sales() {
         accessorKey: "region",
         header: "Region",
         meta: {
-          headerClassName: "w-[13%]",
-          cellClassName: "w-[13%]",
+          headerClassName: "w-[12%]",
+          cellClassName: "w-[12%]",
         },
       },
       {
@@ -241,8 +304,8 @@ function Sales() {
         header: "Total Amount (Rs)",
         cell: ({ getValue }) => formatCompact(getValue() || 0),
         meta: {
-          headerClassName: "w-[15%]",
-          cellClassName: "w-[15%] font-semibold text-gray-900",
+          headerClassName: "w-[15%] text-center",
+          cellClassName: "w-[15%] text-center font-semibold text-gray-900",
         },
       },
       {
@@ -320,6 +383,70 @@ function Sales() {
           </div>
         </div>
 
+        {/* Salesman + Period filters */}
+        <div className="flex flex-col sm:flex-row gap-4 flex-wrap items-end rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <div className="flex-1 min-w-32">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Salesman
+            </label>
+            <select
+              value={filterSalesman}
+              onChange={(e) => setFilterSalesman(e.target.value)}
+              className="w-full px-1 py-1 border text-sm border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Salesmen</option>
+              {salesmen.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-32">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Month
+            </label>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Months</option>
+              {months.map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-32">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Day
+            </label>
+            <select
+              value={filterDay}
+              onChange={(e) => setFilterDay(e.target.value)}
+              className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Days</option>
+              {days.map((d) => (
+                <option key={d} value={String(d)}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={clearFilters}
+            className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-medium transition-colors text-xs"
+          >
+            Clear
+          </button>
+        </div>
+
         {/* Upload result banner */}
         {uploadMessage && (
           <div
@@ -346,9 +473,13 @@ function Sales() {
 
         <TanStackDataTable
           columns={columns}
-          data={sales}
+          data={filteredSales}
           loading={loading}
-          emptyMessage="No sales recorded yet."
+          emptyMessage={
+            filteredSales.length === 0 && sales.length > 0
+              ? "No sales match the selected filters."
+              : "No sales recorded yet."
+          }
           getRowId={(row) => row._id}
           paginate
         />

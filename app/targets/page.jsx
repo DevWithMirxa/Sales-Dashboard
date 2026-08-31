@@ -261,21 +261,37 @@ function Targets() {
       accessorKey: "targetQuantity",
       header: "Target Quantity",
       cell: ({ getValue }) => formatCompact(getValue() || 0),
+      meta: {
+        headerClassName: "text-center",
+        cellClassName: "text-center whitespace-nowrap",
+      },
     },
     {
       accessorKey: "targetRevenue",
       header: "Target Revenue (Rs)",
       cell: ({ getValue }) => formatCompact(getValue() || 0),
-      meta: { cellClassName: "font-semibold text-gray-900" },
+      meta: {
+        headerClassName: "text-center",
+        cellClassName:
+          "text-center font-semibold text-gray-900 whitespace-nowrap",
+      },
     },
     {
       accessorKey: "unit",
       header: "Unit",
+      meta: {
+        headerClassName: "text-right",
+        cellClassName: "text-left  whitespace-nowrap",
+      },
     },
     {
       id: "actions",
       header: "Actions",
       enableSorting: false,
+      meta: {
+        headerClassName: "text-center",
+        cellClassName: "text-center",
+      },
       cell: ({ row }) => (
         <ConfirmDelete
           title="Remove product"
@@ -402,203 +418,204 @@ function Targets() {
           <>
             <div className="space-y-4">
               {pagedTargets.map((target) => {
-              const salesmanName = target.assignedTo?.name || "Unassigned";
-              const salesmanInitial = salesmanName.charAt(0).toUpperCase();
-              const statusConfig = getStatusConfig(target.status);
-              // region is a plain string on the target; fall back to the salesman's area if not set
-              const regionLabel =
-                target.region || target.assignedTo?.area || "-";
+                const salesmanName = target.assignedTo?.name || "Unassigned";
+                const salesmanInitial = salesmanName.charAt(0).toUpperCase();
+                const statusConfig = getStatusConfig(target.status);
+                // region is a plain string on the target; fall back to the salesman's area if not set
+                const regionLabel =
+                  target.region || target.assignedTo?.area || "-";
 
-              return (
-                <div
-                  key={target._id}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
-                >
-                  {/* Header */}
-                  <div className="border-b border-gray-200 p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600 font-semibold text-sm">
-                              {salesmanInitial}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="text-base font-semibold text-gray-900">
-                                {salesmanName}
-                                {target.targetName ? (
-                                  <span className="ml-2 text-sm font-normal text-gray-500">
-                                    ({target.targetName})
-                                  </span>
-                                ) : null}
-                              </h3>
-                              <span
-                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusConfig.className}`}
-                              >
-                                {statusConfig.label}
+                return (
+                  <div
+                    key={target._id}
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                  >
+                    {/* Header */}
+                    <div className="border-b border-gray-200 p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                              <span className="text-blue-600 font-semibold text-sm">
+                                {salesmanInitial}
                               </span>
                             </div>
-                            <div className="flex gap-4 text-sm text-gray-600 flex-wrap">
-                              <span>Region: {regionLabel}</span>
-                              <span>{target.period}</span>
-                              <span>{target.products.length} Products</span>
-                              <span className="font-semibold text-blue-600">
-                                Rs.{" "}
-                                {formatCompact(
-                                  target.totalRevenue ||
-                                    calculateTotalRevenue(target.products),
-                                )}
-                              </span>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-base font-semibold text-gray-900">
+                                  {salesmanName}
+                                  {target.targetName ? (
+                                    <span className="ml-2 text-sm font-normal text-gray-500">
+                                      ({target.targetName})
+                                    </span>
+                                  ) : null}
+                                </h3>
+                                <span
+                                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusConfig.className}`}
+                                >
+                                  {statusConfig.label}
+                                </span>
+                              </div>
+                              <div className="flex gap-4 text-sm text-gray-600 flex-wrap">
+                                <span>Region: {regionLabel}</span>
+                                <span>{target.period}</span>
+                                <span>{target.products.length} Products</span>
+                                <span className="font-semibold text-blue-600">
+                                  Rs.{" "}
+                                  {formatCompact(
+                                    target.totalRevenue ||
+                                      calculateTotalRevenue(target.products),
+                                  )}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEdit(target)}
-                          className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 className="w-5 h-5" />
-                        </button>
-                        <ConfirmDelete
-                          title="Delete target"
-                          description="Are you sure you want to delete this target assignment? This action cannot be undone."
-                          onConfirm={() => handleDelete(target._id)}
-                        >
+                        <div className="flex gap-2">
                           <button
-                            className="p-2 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
-                            title="Delete"
+                            onClick={() => handleEdit(target)}
+                            className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                            title="Edit"
                           >
-                            <Trash2 className="w-5 h-5" />
+                            <Edit2 className="w-5 h-5" />
                           </button>
-                        </ConfirmDelete>
-                        <button
-                          onClick={() =>
-                            setExpandedTarget(
-                              expandedTarget === target._id ? null : target._id,
-                            )
+                          <ConfirmDelete
+                            title="Delete target"
+                            description="Are you sure you want to delete this target assignment? This action cannot be undone."
+                            onConfirm={() => handleDelete(target._id)}
+                          >
+                            <button
+                              className="p-2 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </ConfirmDelete>
+                          <button
+                            onClick={() =>
+                              setExpandedTarget(
+                                expandedTarget === target._id
+                                  ? null
+                                  : target._id,
+                              )
+                            }
+                            className="px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            {expandedTarget === target._id ? "Hide" : "View"}{" "}
+                            Details
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Products List - Expandable */}
+                    {expandedTarget === target._id && (
+                      <div className="bg-gray-50 border-t border-gray-200">
+                        <TanStackDataTable
+                          columns={getProductColumns(target)}
+                          data={target.products.map((product, index) => ({
+                            ...product,
+                            __targetIndex: index,
+                          }))}
+                          emptyMessage="No products found for this target."
+                          getRowId={(row) =>
+                            row.product?._id || String(row.__targetIndex)
                           }
-                          className="px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        >
-                          {expandedTarget === target._id ? "Hide" : "View"}{" "}
-                          Details
-                        </button>
+                          paginate
+                          defaultPageSize={5}
+                          wrapperClassName="overflow-hidden"
+                        />
+
+                        {/* Footer Summary */}
+                        <div className="px-6 py-4 bg-gray-100 border-t border-gray-200 flex justify-between items-center">
+                          <div className="ml-24 text-sm font-semibold text-gray-900">
+                            Total Quantity:{" "}
+                            {formatCompact(
+                              target.totalQuantity ||
+                                calculateTotalQuantity(target.products),
+                            )}{" "}
+                            {target.products[0]?.unit}
+                          </div>
+                          <div className="mx-auto text-lg font-bold text-blue-600">
+                            Total Revenue: Rs.{" "}
+                            {formatCompact(
+                              target.totalRevenue ||
+                                calculateTotalRevenue(target.products),
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-
-                  {/* Products List - Expandable */}
-                  {expandedTarget === target._id && (
-                    <div className="bg-gray-50 border-t border-gray-200">
-                      <TanStackDataTable
-                        columns={getProductColumns(target)}
-                        data={target.products.map((product, index) => ({
-                          ...product,
-                          __targetIndex: index,
-                        }))}
-                        emptyMessage="No products found for this target."
-                        getRowId={(row) =>
-                          row.product?._id || String(row.__targetIndex)
-                        }
-                        paginate
-                        defaultPageSize={5}
-                        wrapperClassName="overflow-hidden"
-                      />
-
-                      {/* Footer Summary */}
-                      <div className="px-6 py-4 bg-gray-100 border-t border-gray-200 flex justify-between items-center">
-                        <div className="ml-24 text-sm font-semibold text-gray-900">
-                          Total Quantity:{" "}
-                          {formatCompact(
-                            target.totalQuantity ||
-                              calculateTotalQuantity(target.products),
-                          )}{" "}
-                          {target.products[0]?.unit}
-                        </div>
-                        <div className="mx-auto text-lg font-bold text-blue-600">
-                          Total Revenue: Rs.{" "}
-                          {formatCompact(
-                            target.totalRevenue ||
-                              calculateTotalRevenue(target.products),
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-        
-          {targets.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <span>Targets per page</span>
-                <select
-                  value={targetPageSize}
-                  onChange={(e) => {
-                    setTargetPageSize(Number(e.target.value));
-                    setTargetPage(0);
-                  }}
-                  className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {[5, 10, 25].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <span>
-                  {targets.length === 0
-                    ? "0 of 0 targets"
-                    : `${targetPage * targetPageSize + 1}-${Math.min(
-                        (targetPage + 1) * targetPageSize,
-                        targets.length,
-                      )} of ${targets.length} targets`}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setTargetPage(0)}
-                  disabled={targetPage === 0}
-                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
-                >
-                  <ChevronsLeft className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setTargetPage((p) => Math.max(0, p - 1))}
-                  disabled={targetPage === 0}
-                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="px-2">
-                  Page {targetPage + 1} of {targetPageCount}
-                </span>
-                <button
-                  onClick={() =>
-                    setTargetPage((p) => Math.min(targetPageCount - 1, p + 1))
-                  }
-                  disabled={targetPage === targetPageCount - 1}
-                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setTargetPage(targetPageCount - 1)}
-                  disabled={targetPage === targetPageCount - 1}
-                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
-                >
-                  <ChevronsRight className="w-4 h-4" />
-                </button>
-              </div>
+                );
+              })}
             </div>
-          )}
+
+            {targets.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                  <span>Targets per page</span>
+                  <select
+                    value={targetPageSize}
+                    onChange={(e) => {
+                      setTargetPageSize(Number(e.target.value));
+                      setTargetPage(0);
+                    }}
+                    className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {[5, 10, 25].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  <span>
+                    {targets.length === 0
+                      ? "0 of 0 targets"
+                      : `${targetPage * targetPageSize + 1}-${Math.min(
+                          (targetPage + 1) * targetPageSize,
+                          targets.length,
+                        )} of ${targets.length} targets`}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setTargetPage(0)}
+                    disabled={targetPage === 0}
+                    className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                  >
+                    <ChevronsLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setTargetPage((p) => Math.max(0, p - 1))}
+                    disabled={targetPage === 0}
+                    className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="px-2">
+                    Page {targetPage + 1} of {targetPageCount}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setTargetPage((p) => Math.min(targetPageCount - 1, p + 1))
+                    }
+                    disabled={targetPage === targetPageCount - 1}
+                    className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setTargetPage(targetPageCount - 1)}
+                    disabled={targetPage === targetPageCount - 1}
+                    className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                  >
+                    <ChevronsRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
 
