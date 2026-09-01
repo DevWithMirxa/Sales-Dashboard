@@ -3,14 +3,10 @@ const multer = require("multer");
 const router = express.Router();
 const {
   getFeedMills,
-  getSalesTeam,
   getFilters,
   createFeedMill,
   updateFeedMill,
   deleteFeedMill,
-  createSalesTeam,
-  updateSalesTeam,
-  deleteSalesTeam,
   uploadFeedMills,
   downloadFeedMillsTemplate,
 } = require("../controllers/directoryController");
@@ -27,7 +23,6 @@ const upload = multer({
 });
 
 router.get("/feed-mills", getFeedMills);
-router.get("/sales-team", getSalesTeam);
 router.get("/filters", getFilters);
 router.get("/feed-mills/upload-template", downloadFeedMillsTemplate);
 
@@ -36,7 +31,6 @@ router.put("/feed-mills/:id", updateFeedMill);
 router.delete("/feed-mills/:id", deleteFeedMill);
 
 // POST /directory/feed-mills/upload - excel file field name must be "file".
-// Feed Mills only - Sales Team import is intentionally not supported here.
 router.post(
   "/feed-mills/upload",
   (req, res, next) => {
@@ -47,9 +41,5 @@ router.post(
   },
   uploadFeedMills,
 );
-
-router.post("/sales-team", createSalesTeam);
-router.put("/sales-team/:id", updateSalesTeam);
-router.delete("/sales-team/:id", deleteSalesTeam);
 
 module.exports = router;

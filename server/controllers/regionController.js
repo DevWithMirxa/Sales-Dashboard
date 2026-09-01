@@ -1,6 +1,5 @@
 const Region = require("../models/Region");
 const Salesman = require("../models/Salesman");
-const SalesTeam = require("../models/SalesTeam");
 const Trend = require("../models/Trend");
 const Target = require("../models/Target");
 
@@ -34,15 +33,14 @@ const createRegion = async (req, res) => {
 };
 
 // GET /regions - each region enriched with:
-//   - salesTeam and designations from Business Directory, Salesmen, and Targets
+//   - salesTeam (members) built from Salesmen and Targets
 //   - monthlySales from latest Trends, matched to each salesman's region
 //   - target from assigned Targets first, then latest Trends as a fallback
 const getRegions = async (req, res) => {
   try {
     const regions = await Region.find().sort({ createdAt: -1 }).lean();
 
-    const [salesTeam, salesmen, targets, latestPeriodDoc] = await Promise.all([
-      SalesTeam.find().lean(),
+    const [salesmen, targets, latestPeriodDoc] = await Promise.all([
       Salesman.find().lean(),
       Target.find().populate("assignedTo").lean(),
       Trend.findOne().sort({ period: -1 }).select("period").lean(),
@@ -69,14 +67,6 @@ const getRegions = async (req, res) => {
         designation: designation || existing.designation || null,
       });
     };
-
-    salesTeam.forEach((member) => {
-      addTeamMember({
-        salesperson: member.salesperson,
-        designation: member.designation || null,
-        region: member.region,
-      });
-    });
 
     salesmen.forEach((salesman) => {
       addTeamMember({
@@ -111,8 +101,6 @@ const getRegions = async (req, res) => {
         const trendSalesperson = normalizeName(t._id);
         const region =
           personRegionByName.get(trendSalesperson) ||
-          salesTeam.find((m) => normalizeName(m.salesperson) === trendSalesperson)
-            ?.region ||
           salesmen.find((s) => normalizeName(s.name) === trendSalesperson)?.area;
         const regionKey = normalizeRegion(region);
         if (!regionKey) return;

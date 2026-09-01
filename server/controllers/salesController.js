@@ -1,6 +1,5 @@
 const Sale = require("../models/Sale");
 const Salesman = require("../models/Salesman");
-const SalesTeam = require("../models/SalesTeam");
 const Product = require("../models/Product");
 const Target = require("../models/Target");
 const FeedMill = require("../models/FeedMill");
@@ -41,36 +40,31 @@ const computeTotal = (body) => {
 };
 
 // GET /sales/form-options
-// Feeds the "Add Sales" dialog: salesmen (Salesman page + Business Directory
-// Sales Team), products (Product page + products referenced in Targets),
-// customers (Business Directory Feed Mills), and regions (Region page).
+// Feeds the "Add Sales" dialog: salesmen (Salesman page only - the legacy
+// Business Directory Sales Team is intentionally no longer merged so the
+// dropdown can't show stale/duplicate names), products (Product page +
+// products referenced in Targets), customers (Business Directory Feed Mills),
+// and regions (Region page).
 const getSaleFormOptions = async (req, res) => {
   try {
-    const [salesmen, salesTeam, products, targets, feedMills, regions] =
+    const [salesmen, products, targets, feedMills, regions] =
       await Promise.all([
         Salesman.find().select("name designation area"),
-        SalesTeam.find().select("salesperson designation region"),
         Product.find().select("name pricePerKg packingKg"),
         Target.find().populate("products.product", "name pricePerKg packingKg"),
         FeedMill.find().select("feedMillName districtRegion"),
         Region.find({ activeStatus: true }).select("region"),
       ]);
 
-    // --- Salesmen: merge Salesman page + Business Directory Sales Team ---
-    const salesmenCombined = dedupeByName([
-      ...salesmen.map((s) => ({
+    // --- Salesmen: take from the Salesman page only ---
+    const salesmenCombined = dedupeByName(
+      salesmen.map((s) => ({
         name: s.name,
         designation: s.designation || "",
         region: s.area || "",
         source: "salesman",
       })),
-      ...salesTeam.map((s) => ({
-        name: s.salesperson,
-        designation: s.designation || "",
-        region: s.region || "",
-        source: "sales-team",
-      })),
-    ]);
+    );
 
     // --- Products: merge Product master + products referenced in Targets ---
     // (Target.products.product is already a ref to Product, so this mostly

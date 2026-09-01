@@ -4,9 +4,10 @@ const mongoose = require("mongoose");
  * Sale
  *
  * salesman / product / customer / region are stored as plain strings
- * (not ObjectId refs) on purpose: each of these is merged on the frontend
- * from TWO different collections (Salesman + SalesTeam, Product + Target,
- * etc.) that don't share a common _id space. Storing the resolved name
+ * (not ObjectId refs) on purpose: the salesman comes from the Salesman
+ * collection, while product/customer/region could come from more than one
+ * collection (Product + Target, Feed Mills, Region) that don't share a common
+ * _id space. Storing the resolved name
  * avoids having to track "which collection did this id come from" on every
  * read. This mirrors the existing pattern already used in this app for
  * Target.region and Salesman.area, which are also plain strings.

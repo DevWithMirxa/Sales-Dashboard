@@ -4,9 +4,9 @@ const mongoose = require("mongoose");
  * Recovery
  *
  * salesperson / customer / region are stored as plain strings (not ObjectId
- * refs) on purpose - same pattern as Sale.js in this app - since each is
- * merged on the frontend from multiple collections (Salesman + SalesTeam,
- * Feed Mills, Region) that don't share a common _id space.
+ * refs) on purpose - same pattern as Sale.js in this app - since the
+ * salesperson comes from the Salesman collection while customer/region come
+ * from Feed Mills and Region, which don't share a common _id space.
  *
  * Balance, Days Overdue, and Status are deliberately NOT stored here.
  * Balance is trivially derivable (invoiceAmount - amountRecovered), and Days

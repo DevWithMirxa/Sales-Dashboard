@@ -1,5 +1,4 @@
 const Salesman = require("../models/Salesman");
-const SalesTeam = require("../models/SalesTeam");
 const XLSX = require("xlsx");
 
 const createSalesman = async (req, res) => {

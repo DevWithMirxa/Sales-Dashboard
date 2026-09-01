@@ -1,5 +1,4 @@
 const FeedMill = require("../models/FeedMill");
-const SalesTeam = require("../models/SalesTeam");
 const XLSX = require("xlsx");
 
 // GET /directory/feed-mills?search=&district=
@@ -32,43 +31,12 @@ const getFeedMills = async (req, res) => {
   }
 };
 
-// GET /directory/sales-team?search=&designation=
-const getSalesTeam = async (req, res) => {
-  try {
-    const { search, designation } = req.query;
-    const match = {};
-
-    if (designation && designation !== "all") {
-      match.designation = designation;
-    }
-
-    if (search) {
-      const regex = new RegExp(search, "i");
-      match.$or = [
-        { salesperson: regex },
-        { designation: regex },
-        { region: regex },
-      ];
-    }
-
-    const rows = await SalesTeam.find(match).sort({ salesperson: 1 });
-    res.json({ rows, total: rows.length });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 // GET /directory/filters - distinct values to populate filter dropdowns
 const getFilters = async (req, res) => {
   try {
-    const [districts, designations] = await Promise.all([
-      FeedMill.distinct("districtRegion"),
-      SalesTeam.distinct("designation"),
-    ]);
-
+    const districts = await FeedMill.distinct("districtRegion");
     res.json({
       districts: districts.filter(Boolean).sort(),
-      designations: designations.filter(Boolean).sort(),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -110,46 +78,8 @@ const deleteFeedMill = async (req, res) => {
   }
 };
 
-// POST /directory/sales-team - create a new sales team member
-const createSalesTeam = async (req, res) => {
-  try {
-    const doc = await SalesTeam.create(req.body);
-    res.status(201).json(doc);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-
-// PUT /directory/sales-team/:id - update an existing sales team member
-const updateSalesTeam = async (req, res) => {
-  try {
-    const doc = await SalesTeam.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    if (!doc)
-      return res.status(404).json({ message: "Sales team member not found" });
-    res.json(doc);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-
-// DELETE /directory/sales-team/:id - remove a sales team member
-const deleteSalesTeam = async (req, res) => {
-  try {
-    const doc = await SalesTeam.findByIdAndDelete(req.params.id);
-    if (!doc)
-      return res.status(404).json({ message: "Sales team member not found" });
-    res.json({ success: true, id: req.params.id });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 // ---------------------------------------------------------------------------
-// Excel upload — Feed Mills only (Sales Team upload intentionally not
-// included). Same header-detection approach as the other uploads.
+// Excel upload — Feed Mills. Same header-detection approach as the other uploads.
 //
 // Column mapping (per confirmed decisions):
 //   Feed Mill Name    -> feedMillName (required, upsert key)
@@ -526,14 +456,10 @@ const downloadFeedMillsTemplate = async (req, res) => {
 
 module.exports = {
   getFeedMills,
-  getSalesTeam,
   getFilters,
   createFeedMill,
   updateFeedMill,
   deleteFeedMill,
-  createSalesTeam,
-  updateSalesTeam,
-  deleteSalesTeam,
   uploadFeedMills,
   downloadFeedMillsTemplate,
 };

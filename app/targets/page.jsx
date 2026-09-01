@@ -271,7 +271,7 @@ function Targets() {
       header: "Target Revenue (Rs)",
       cell: ({ getValue }) => formatCompact(getValue() || 0),
       meta: {
-        headerClassName: "text-center",
+        headerClassName: "text-right whitespace-nowrap",
         cellClassName:
           "text-center font-semibold text-gray-900 whitespace-nowrap",
       },
@@ -280,7 +280,7 @@ function Targets() {
       accessorKey: "unit",
       header: "Unit",
       meta: {
-        headerClassName: "text-right",
+        headerClassName: "text-right whitespace-nowrap",
         cellClassName: "text-left  whitespace-nowrap",
       },
     },
@@ -289,8 +289,8 @@ function Targets() {
       header: "Actions",
       enableSorting: false,
       meta: {
-        headerClassName: "text-center",
-        cellClassName: "text-center",
+        headerClassName: "text-right",
+        cellClassName: "text-left",
       },
       cell: ({ row }) => (
         <ConfirmDelete

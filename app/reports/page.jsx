@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import TanStackDataTable from "@/components/TanStackDataTable";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
@@ -234,12 +235,123 @@ const resolveSalespersonToSalesman = (name, salesmen) => {
 const resolveRegion = (name, salesmen) =>
   resolveSalespersonToSalesman(name, salesmen)?.area || "Unknown";
 
+// Shared paginated table shell for the list-style reports (salesperson,
+// product, region, recovery). Holds its own page/page-size state so the
+// parent doesn't re-mount it on every keystroke.
+function PaginatedListTable({ columns, rows, emptyLabel, pageSize = 10 }) {
+  const [pageIndex, setPageIndex] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(pageSize);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / rowsPerPage));
+
+  // Keep the current page valid when the filtered row count shrinks.
+  useEffect(() => {
+    if (pageIndex > pageCount - 1) setPageIndex(pageCount - 1);
+  }, [pageCount, pageIndex]);
+
+  if (!rows.length) {
+    return (
+      <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  const start = pageIndex * rowsPerPage;
+  const pageRows = rows.slice(start, start + rowsPerPage);
+
+  return (
+    <div>
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50">
+              {columns.map((col) => (
+                <th
+                  key={col}
+                  className="whitespace-nowrap px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-gray-500"
+                >
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">{pageRows}</tbody>
+        </table>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+        <div className="flex items-center gap-2">
+          <span>Rows per page</span>
+          <select
+            value={rowsPerPage}
+            onChange={(e) => {
+              setRowsPerPage(Number(e.target.value));
+              setPageIndex(0);
+            }}
+            className="rounded-lg border border-gray-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {[10, 25, 50, 100].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <span>
+            {rows.length
+              ? `${start + 1}-${Math.min(start + rowsPerPage, rows.length)} of ${rows.length}`
+              : "0 of 0"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setPageIndex(0)}
+            disabled={pageIndex === 0}
+            className="rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 hover:bg-gray-50"
+          >
+            First
+          </button>
+          <button
+            type="button"
+            onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+            disabled={pageIndex === 0}
+            className="rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 hover:bg-gray-50"
+          >
+            Prev
+          </button>
+          <span className="px-1 text-xs">
+            Page {pageIndex + 1} of {pageCount}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
+            disabled={pageIndex >= pageCount - 1}
+            className="rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 hover:bg-gray-50"
+          >
+            Next
+          </button>
+          <button
+            type="button"
+            onClick={() => setPageIndex(pageCount - 1)}
+            disabled={pageIndex >= pageCount - 1}
+            className="rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 hover:bg-gray-50"
+          >
+            Last
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const [view, setView] = useState("monthly");
   const [loading, setLoading] = useState(true);
   const [trendRows, setTrendRows] = useState([]);
   const [salesmen, setSalesmen] = useState([]);
   const [recoveries, setRecoveries] = useState([]);
+  const [sales, setSales] = useState([]);
   const [fetchError, setFetchError] = useState("");
   const [selectedReportId, setSelectedReportId] = useState("salesperson");
   const [selectedYear, setSelectedYear] = useState("");
@@ -256,6 +368,7 @@ export default function ReportsPage() {
     product: { icon: Package, entity: "Product" },
     region: { icon: MapPin, entity: "Region" },
     recovery: { icon: Wallet, entity: "Salesperson" },
+    customer: { icon: GitCompare, entity: "Customer" },
   };
 
   const fetchReportsData = async () => {
@@ -267,9 +380,11 @@ export default function ReportsPage() {
         api.get("/trends", { params: { limit: 50000 } }),
         api.get("/salesmen"),
         api.get("/recovery"),
+        api.get("/sales"),
       ]);
 
-      const [trendsResult, salesmenResult, recoveryResult] = results;
+      const [trendsResult, salesmenResult, recoveryResult, salesResult] =
+        results;
 
       if (trendsResult.status === "fulfilled") {
         setTrendRows(trendsResult.value.data.rows || []);
@@ -299,6 +414,17 @@ export default function ReportsPage() {
           prev
             ? prev
             : "Unable to load recovery data. Check your network connection or API server.",
+        );
+      }
+
+      if (salesResult.status === "fulfilled") {
+        setSales(salesResult.value.data || []);
+      } else {
+        console.error("Error loading sales data:", salesResult.reason);
+        setFetchError((prev) =>
+          prev
+            ? prev
+            : "Unable to load sales data. Check your network connection or API server.",
         );
       }
     } catch (error) {
@@ -625,6 +751,114 @@ export default function ReportsPage() {
     [recoveryRows, query],
   );
 
+  // Customer Comparison Report: joins actual Sales records (how much was sold
+  // to each customer) with Recovery records (how much was invoiced/recovered/
+  // outstanding per customer). Sales "saleValue" comes from totalAmount; the
+  // Recovery side aggregates invoiceAmount, amountRecovered, and balance.
+  const customerReport = useMemo(() => {
+    const groups = {};
+
+    (sales || []).forEach((s) => {
+      const name = s.customer || "Unknown";
+      if (!groups[name]) {
+        groups[name] = {
+          customer: name,
+          saleValue: 0,
+          saleCount: 0,
+          invoiced: 0,
+          recovered: 0,
+          outstanding: 0,
+        };
+      }
+      groups[name].saleValue += Number(s.totalAmount || 0);
+      groups[name].saleCount += 1;
+    });
+
+    (recoveries || []).forEach((r) => {
+      const name = r.customer || "Unknown";
+      if (!groups[name]) {
+        groups[name] = {
+          customer: name,
+          saleValue: 0,
+          saleCount: 0,
+          invoiced: 0,
+          recovered: 0,
+          outstanding: 0,
+        };
+      }
+      groups[name].invoiced += Number(r.invoiceAmount || 0);
+      groups[name].recovered += Number(r.amountRecovered || 0);
+      groups[name].outstanding += Number(r.balance || 0);
+    });
+
+    return Object.values(groups).sort(
+      (left, right) => right.saleValue - left.saleValue,
+    );
+  }, [sales, recoveries]);
+  const searchedCustomerReport = useMemo(
+    () =>
+      query
+        ? customerReport.filter((item) =>
+            item.customer.toLowerCase().includes(query),
+          )
+        : customerReport,
+    [customerReport, query],
+  );
+
+  // TanStack column defs for the Customer Comparison Report table.
+  const customerColumns = useMemo(
+    () => [
+      {
+        accessorKey: "customer",
+        header: "Customer ",
+        meta: { headerClassName: "text-center", cellClassName: "text-center" },
+        cell: ({ getValue }) => (
+          <span className="font-medium text-gray-900">{getValue()}</span>
+        ),
+      },
+      {
+        accessorKey: "saleValue",
+        header: "Sales (Rs)",
+        meta: { headerClassName: "text-center", cellClassName: "text-center" },
+        cell: ({ getValue }) => formatCurrency(getValue() || 0),
+      },
+      {
+        accessorKey: "saleCount",
+        header: "Transactions",
+        meta: { headerClassName: "text-center", cellClassName: "text-center" },
+        cell: ({ getValue }) => formatNumber(getValue() || 0),
+      },
+      {
+        accessorKey: "invoiced",
+        header: "Invoiced (Rs)",
+        meta: { headerClassName: "text-center", cellClassName: "text-center" },
+        cell: ({ getValue }) => formatCurrency(getValue() || 0),
+      },
+      {
+        accessorKey: "recovered",
+        header: "Recovered (Rs)",
+        meta: { headerClassName: "text-center", cellClassName: "text-center" },
+        cell: ({ getValue }) => formatCurrency(getValue() || 0),
+      },
+      {
+        accessorKey: "outstanding",
+        header: "Outstanding (Rs)",
+        meta: { headerClassName: "text-center", cellClassName: "text-center" },
+        cell: ({ getValue }) => {
+          const v = getValue() || 0;
+          return (
+            <span
+              className={`font-medium ${v > 0 ? "text-red-600" : "text-gray-900"}`}
+            >
+              {formatCurrency(v)}
+            </span>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
   const totals = useMemo(() => {
     const saleValue = filteredTrendRows.reduce(
       (sum, row) => sum + Number(row.saleValueRs || 0),
@@ -898,6 +1132,38 @@ export default function ReportsPage() {
           }
         },
       },
+      {
+        id: "customer",
+        label: "Customer comparison report",
+        fileSlug: "customer-comparison",
+        render: (doc, ctx) => {
+          ctx.addSectionTitle(
+            doc,
+            ctx,
+            `Customer comparison report - ${reportPeriodLabel}`,
+          );
+          if (customerReport.length) {
+            ctx.addTable(
+              doc,
+              ctx,
+              ["Customer", "Sales", "Invoices", "Recovered", "Outstanding"],
+              customerReport.map((item) => [
+                item.customer,
+                formatCurrency(item.saleValue),
+                formatCurrency(item.invoiced),
+                formatCurrency(item.recovered),
+                formatCurrency(item.outstanding),
+              ]),
+            );
+          } else {
+            ctx.addEmptyNote(
+              doc,
+              ctx,
+              "No customer comparison data available.",
+            );
+          }
+        },
+      },
     ],
     [
       totals,
@@ -910,6 +1176,7 @@ export default function ReportsPage() {
       productBreakdown,
       regionBreakdown,
       recoveryRows,
+      customerReport,
     ],
   );
 
@@ -1075,6 +1342,14 @@ export default function ReportsPage() {
         period: reportPeriodLabel,
         recoveryAmount: r.outstanding,
       })),
+      ...customerReport.map((r) => ({
+        section: "Customer",
+        name: r.customer,
+        period: reportPeriodLabel,
+        saleValue: r.saleValue,
+        recoveryAmount: r.invoiced,
+        recovered: r.recovered,
+      })),
     ];
 
     exportToCSV(rows, REPORT_EXPORT_COLUMNS, "sales-reports");
@@ -1085,32 +1360,10 @@ export default function ReportsPage() {
     reportSections[0];
 
   const renderSelectedReport = () => {
-    // Small reusable table shell so the four list-style reports (salesperson,
-    // product, region, recovery) share one consistent look.
-    const ListTable = ({ columns, rows, emptyLabel }) =>
-      rows.length ? (
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                {columns.map((col) => (
-                  <th
-                    key={col}
-                    className="whitespace-nowrap px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-gray-500"
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">{rows}</tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
-          {emptyLabel}
-        </div>
-      );
+    // Small reusable table shell so the list-style reports (salesperson,
+    // product, region, recovery) share one consistent look. Delegates to the
+    // module-level component that owns the pagination state.
+    const ListTable = (props) => <PaginatedListTable {...props} />;
 
     const AchievementBadge = ({ value }) => (
       <span
@@ -1407,6 +1660,17 @@ export default function ReportsPage() {
             ))}
           />
         );
+      case "customer":
+        return (
+          <TanStackDataTable
+            columns={customerColumns}
+            data={searchedCustomerReport}
+            emptyMessage="No customer comparison data available."
+            getRowId={(row) => row.customer}
+            paginate
+            defaultPageSize={10}
+          />
+        );
       default:
         return null;
     }
@@ -1663,9 +1927,13 @@ export default function ReportsPage() {
                     })}
                   </div>
 
-                  {["salesperson", "product", "region", "recovery"].includes(
-                    selectedReportId,
-                  ) && (
+                  {[
+                    "salesperson",
+                    "product",
+                    "region",
+                    "recovery",
+                    "customer",
+                  ].includes(selectedReportId) && (
                     <div className="flex items-center gap-2">
                       <div className="relative w-full sm:w-56">
                         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />

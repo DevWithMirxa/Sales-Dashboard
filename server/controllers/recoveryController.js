@@ -1,6 +1,5 @@
 const Recovery = require("../models/Recovery");
 const Salesman = require("../models/Salesman");
-const SalesTeam = require("../models/SalesTeam");
 const FeedMill = require("../models/FeedMill");
 const Region = require("../models/Region");
 const XLSX = require("xlsx");
@@ -117,25 +116,21 @@ const deleteRecovery = async (req, res) => {
 };
 
 // GET /recovery/form-options
-// Feeds the Recovery form's dropdowns: salesmen (Salesman page + Business
-// Directory Sales Team), customers (Business Directory Feed Mills), and
-// regions (Region page) - same merge pattern as /sales/form-options.
+// Feeds the Recovery form's dropdowns: salesmen (Salesman page only - the
+// legacy Business Directory Sales Team is intentionally no longer merged so
+// stale/duplicate names can't appear), customers (Business Directory Feed
+// Mills), and regions (Region page).
 const getRecoveryFormOptions = async (req, res) => {
   try {
-    const [salesmen, salesTeam, feedMills, regions] = await Promise.all([
+    const [salesmen, feedMills, regions] = await Promise.all([
       Salesman.find().select("name area"),
-      SalesTeam.find().select("salesperson region"),
       FeedMill.find().select("feedMillName districtRegion"),
       Region.find({ activeStatus: true }).select("region"),
     ]);
 
-    const salesmenCombined = dedupeByName([
-      ...salesmen.map((s) => ({ name: s.name, region: s.area || "" })),
-      ...salesTeam.map((s) => ({
-        name: s.salesperson,
-        region: s.region || "",
-      })),
-    ]);
+    const salesmenCombined = dedupeByName(
+      salesmen.map((s) => ({ name: s.name, region: s.area || "" })),
+    );
 
     const customersCombined = dedupeByName(
       feedMills.map((f) => ({
