@@ -182,7 +182,9 @@ function Products() {
       {
         accessorKey: "packingKg",
         header: "Packing Size (Kg)",
-        cell: ({ getValue }) => `${getValue()}`,
+        cell: ({ getValue }) => (
+          <span className="block text-center">{getValue()}</span>
+        ),
       },
       {
         accessorKey: "origin",

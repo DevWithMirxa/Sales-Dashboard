@@ -79,12 +79,11 @@ export default function Sidebar({ isOpen, onToggle }) {
         className="h-16 border-b border-gray-200 flex items-center justify-center gap-3 px-4 hover:bg-gray-50 transition-colors shrink-0 w-full"
         title={isOpen ? "Collapse sidebar" : "Expand sidebar"}
       >
-        <div className="w-10 h-10 bg-linear-to-br from-blue-600 to-teal-400 rounded-lg flex items-center justify-center shrink-0">
-          <BarChart3 className="w-6 h-6 text-white" />
-        </div>
-        {isOpen && (
-          <span className="font-bold text-lg text-gray-900">SalesHub</span>
-        )}
+        <img
+          src="/image (102).png"
+          alt="SalesHub logo"
+          className={`${isOpen ? "w-60" : "w-10"} h-17 object-contain mt-1 shrink-0 transition-all duration-300`}
+        />
       </button>
 
       {/* Menu Items - scrolls independently if it grows taller than the screen */}

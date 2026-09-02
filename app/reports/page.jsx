@@ -820,7 +820,11 @@ export default function ReportsPage() {
         accessorKey: "saleValue",
         header: "Sales (Rs)",
         meta: { headerClassName: "text-center", cellClassName: "text-center" },
-        cell: ({ getValue }) => formatCurrency(getValue() || 0),
+        cell: ({ getValue }) => (
+          <span className="block text-left">
+            {formatCurrency(getValue() || 0)}
+          </span>
+        ),
       },
       {
         accessorKey: "saleCount",
