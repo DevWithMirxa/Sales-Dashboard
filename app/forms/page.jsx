@@ -46,15 +46,6 @@ export default function FormsPortal() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Render forms cards */}
-        <div
-          className="bg-white p-6 rounded-lg border shadow-sm cursor-pointer hover:shadow-md transition"
-          onClick={() => setActiveForm("customer")}
-        >
-          <h3 className="text-base font-semibold mb-2">Customers</h3>
-          <p className="text-gray-500 text-sm">
-            Add or edit customers in the system.
-          </p>
-        </div>
 
         <div
           className="bg-white p-6 rounded-lg border shadow-sm cursor-pointer hover:shadow-md transition"
@@ -87,7 +78,6 @@ export default function FormsPortal() {
         </div>
       </div>
 
-      {activeForm === "customer" && <CustomerForm onClose={closeForm} />}
       {activeForm === "salesperson" && <SalesPersonForm onClose={closeForm} />}
       {activeForm === "region" && <RegionForm onClose={closeForm} />}
       {activeForm === "product" && <ProductForm onClose={closeForm} />}

@@ -84,7 +84,7 @@ export default function FilterBar({
           name="region"
           value={region}
           onChange={handleChange}
-          className="w-full px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full text-sm px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option className="text-sm" value="all">
             All Regions
@@ -101,7 +101,7 @@ export default function FilterBar({
           name="product"
           value={product}
           onChange={handleChange}
-          className="w-full px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option className="text-sm" value="all">
             All Products
@@ -118,7 +118,7 @@ export default function FilterBar({
           name="salesperson"
           value={salesperson}
           onChange={handleChange}
-          className="w-full px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option className="text-sm" value="all">
             All Salespeople
@@ -135,7 +135,7 @@ export default function FilterBar({
           name="breakdown"
           value={breakdown?.granularity || "month"}
           onChange={handleBreakdownChange}
-          className="w-full px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option className="text-sm" value="month">
             Monthly
@@ -158,7 +158,7 @@ export default function FilterBar({
           name="breakdownYear"
           value={breakdown?.year || "all"}
           onChange={handleBreakdownChange}
-          className="w-full px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option className="text-sm" value="all">
             All
