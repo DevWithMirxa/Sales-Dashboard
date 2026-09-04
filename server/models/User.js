@@ -39,6 +39,20 @@ const userSchema = new mongoose.Schema(
     lastActiveAt: {
       type: Date,
     },
+    // Forgot-password flow: a SHA-256 hash of the raw token emailed to the
+    // user (never store the raw token itself - same principle as storing
+    // hashed passwords). select: false keeps it out of normal queries
+    // (e.g. getUserProfile) so it never accidentally leaks to the client;
+    // the auth controller queries against it directly by field name, which
+    // still works fine even with select: false.
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      select: false,
+    },
   },
   { timestamps: true },
 );

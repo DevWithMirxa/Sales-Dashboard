@@ -171,6 +171,40 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Always resolves { success: true } on a network-level success, even if
+  // the email doesn't belong to a real account - the backend deliberately
+  // gives the same generic response either way (see authController.js), so
+  // this can't be used to enumerate registered emails from the frontend.
+  const forgotPassword = async (email) => {
+    try {
+      const { data } = await api.post("/auth/forgot-password", { email });
+      return { success: true, message: data.message };
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error.response?.data?.message ||
+          "Something went wrong. Please try again.",
+      };
+    }
+  };
+
+  const resetPassword = async (token, password) => {
+    try {
+      const { data } = await api.post(`/auth/reset-password/${token}`, {
+        password,
+      });
+      return { success: true, message: data.message };
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error.response?.data?.message ||
+          "This reset link is invalid or has expired.",
+      };
+    }
+  };
+
   const logout = async () => {
     removeCookie("token");
     setUser(null);
@@ -194,6 +228,8 @@ export function AuthProvider({ children }) {
         login,
         signup,
         logout,
+        forgotPassword,
+        resetPassword,
         isAuthenticated: !!user,
         isAdmin: user?.role === "admin",
       }}
