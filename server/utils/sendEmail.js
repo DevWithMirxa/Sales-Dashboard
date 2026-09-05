@@ -1,46 +1,20 @@
-const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
 
-// Free option: sends through your own Gmail account via SMTP, using a
-// Gmail "App Password" (NOT your normal Google password - see setup notes).
-// Unlike Resend's unverified/sandbox mode, this works for ANY recipient
-// with no domain purchase or DNS verification required. Free up to Gmail's
-// own sending limits (~500/day on a regular account, 2000/day on Google
-// Workspace) - far more than a password-reset flow will ever need.
-// Built lazily (inside sendPasswordResetEmail, not here at module-load
-// time) so it always reads process.env.GMAIL_USER / GMAIL_APP_PASSWORD
-// AFTER dotenv has had a chance to run - if this module gets require()'d
-// before your entry file calls dotenv.config(), building the transporter
-// here would permanently bake in `undefined` credentials, which is what
-// produces the "Missing credentials for PLAIN" error even with a correct
-// .env file.
-let transporter = null;
-const getTransporter = () => {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    throw new Error(
-      "GMAIL_USER and GMAIL_APP_PASSWORD must both be set in your environment " +
-        "before sending email. Check your .env file (and Railway's env vars in " +
-        "production), and make sure dotenv.config() runs before anything that " +
-        "sends email.",
-    );
-  }
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-      },
-    });
-  }
-  return transporter;
-};
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const getFromAddress = () =>
-  process.env.GMAIL_USER ? `SalesHub <${process.env.GMAIL_USER}>` : "SalesHub";
+// Must exactly match the address you verified under Settings > Sender
+// Authentication > Verify a Single Sender in the SendGrid dashboard -
+// SendGrid rejects sends from any address that isn't verified.
+const FROM_ADDRESS = process.env.SENDGRID_FROM_EMAIL;
 
 // Sends the "reset your password" email. Kept as its own function (rather
 // than inlined in the controller) so the email template and the provider
 // can both be swapped later without touching authController.js.
+//
+// Uses SendGrid's HTTPS API rather than SMTP on purpose: raw SMTP (e.g.
+// Gmail) frequently hangs or gets silently blocked when sent FROM cloud
+// hosting IPs (Railway, AWS, etc.) due to email providers' anti-abuse IP
+// reputation systems - an HTTPS API call sidesteps that entirely.
 const sendPasswordResetEmail = async ({ to, name, resetUrl }) => {
   const html = `
     <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
@@ -70,9 +44,22 @@ const sendPasswordResetEmail = async ({ to, name, resetUrl }) => {
     </div>
   `;
 
-  await getTransporter().sendMail({
-    from: getFromAddress(),
+  // A plain-text alternative alongside the HTML version - HTML-only emails
+  // are a mild spam signal on their own, multipart (text + html) is the
+  // standard, more-trusted format. Doesn't fix the underlying Gmail-address
+  // spoofing signal below, but it's a legitimate small improvement.
+  const text = `Reset your SalesHub password
+
+Hi ${name || "there"}, we received a request to reset the password for your SalesHub account.
+
+Reset it here: ${resetUrl}
+
+This link expires in 1 hour. If you didn't request this, you can safely ignore this email.`;
+
+  await sgMail.send({
+    text,
     to,
+    from: FROM_ADDRESS,
     subject: "Reset your SalesHub password",
     html,
   });
