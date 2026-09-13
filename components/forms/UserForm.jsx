@@ -113,7 +113,10 @@ export default function UserForm({ onClose, initialData, onSuccess }) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4 **:data-[slot='input']:border-accent **:data-[slot='textarea']:border-accent **:data-[slot='select-trigger']:border-accent **:data-[slot='button']:bg-black **:data-[slot='button']:text-accent"
+        >
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
               {error}
@@ -133,7 +136,9 @@ export default function UserForm({ onClose, initialData, onSuccess }) {
                 onChange={handleChange}
                 placeholder="Enter full name"
               />
-              {errors.name && <p className="text-xs text-red-600">{errors.name}</p>}
+              {errors.name && (
+                <p className="text-xs text-red-600">{errors.name}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -149,7 +154,9 @@ export default function UserForm({ onClose, initialData, onSuccess }) {
                 onChange={handleChange}
                 placeholder="Enter email address"
               />
-              {errors.email && <p className="text-xs text-red-600">{errors.email}</p>}
+              {errors.email && (
+                <p className="text-xs text-red-600">{errors.email}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -180,12 +187,19 @@ export default function UserForm({ onClose, initialData, onSuccess }) {
                     : "Enter password"
                 }
               />
-              {errors.password && <p className="text-xs text-red-600">{errors.password}</p>}
+              {errors.password && (
+                <p className="text-xs text-red-600">{errors.password}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="role">Role</Label>
-              <Select value={formData.role} onValueChange={(v) => handleChange({ target: { name: "role", value: v } })}>
+              <Select
+                value={formData.role}
+                onValueChange={(v) =>
+                  handleChange({ target: { name: "role", value: v } })
+                }
+              >
                 <SelectTrigger id="role" className="capitalize">
                   <SelectValue className="capitalize" />
                 </SelectTrigger>
@@ -201,7 +215,12 @@ export default function UserForm({ onClose, initialData, onSuccess }) {
 
             <div className="space-y-1.5">
               <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(v) => handleChange({ target: { name: "status", value: v } })}>
+              <Select
+                value={formData.status}
+                onValueChange={(v) =>
+                  handleChange({ target: { name: "status", value: v } })
+                }
+              >
                 <SelectTrigger id="status" className="capitalize">
                   <SelectValue className="capitalize" />
                 </SelectTrigger>

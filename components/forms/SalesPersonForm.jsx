@@ -234,9 +234,12 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6 **:data-[slot='input']:border-accent **:data-[slot='textarea']:border-accent **:data-[slot='select-trigger']:border-accent **:data-[slot='button']:bg-black **:data-[slot='button']:text-accent"
+        >
           {formError && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-md border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-soft-foreground">
               {formError}
             </div>
           )}
@@ -244,7 +247,7 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="name">
-                Name<span className="text-red-500 ml-0.5">*</span>
+                Name<span className="text-destructive ml-0.5">*</span>
               </Label>
               <Input
                 id="name"
@@ -255,7 +258,7 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
                 placeholder="Enter sales person name"
               />
               {errors.name && (
-                <p className="text-xs text-red-600">{errors.name}</p>
+                <p className="text-xs text-destructive">{errors.name}</p>
               )}
             </div>
 
@@ -339,7 +342,7 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
               {formData.contacts.map((c, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border border-gray-200 p-3"
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border border-border p-3"
                 >
                   <div className="space-y-1.5">
                     <Label htmlFor={`contact-label-${idx}`}>Label</Label>
@@ -366,7 +369,7 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
                     />
                   </div>
                   <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <label className="flex items-center gap-2 text-sm text-foreground">
                       <input
                         type="radio"
                         name="primaryContact"
@@ -381,7 +384,7 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
                       size="sm"
                       onClick={() => removeContact(idx)}
                       disabled={formData.contacts.length === 1}
-                      className="text-red-600 hover:text-red-700"
+                      className="text-destructive hover:text-destructive"
                     >
                       Remove
                     </Button>
@@ -394,7 +397,7 @@ export default function SalesPersonForm({ onClose, initialData, onSuccess }) {
                 <option value="WhatsApp" />
               </datalist>
               {errors.contacts && (
-                <p className="text-xs text-red-600">{errors.contacts}</p>
+                <p className="text-xs text-destructive">{errors.contacts}</p>
               )}
             </div>
           </div>

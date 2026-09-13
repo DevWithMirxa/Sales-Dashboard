@@ -17,20 +17,6 @@ import ConfirmDelete from "@/components/ConfirmDelete";
 import DirectoryForm from "@/components/forms/DirectoryForm";
 import axios from "axios";
 import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  getPaginationRowModel,
-  flexRender,
-  createColumnHelper,
-} from "@tanstack/react-table";
-import {
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
   Search,
   Factory,
   MapPin,
@@ -49,6 +35,9 @@ import {
   AlertCircle,
   X,
   FileDown,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
 } from "lucide-react";
 
 import {
@@ -65,18 +54,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { KPISkeleton } from "@/components/ui/skeleton";
 
 const showValue = (v) => (v === null || v === undefined || v === "" ? "-" : v);
 const hasValue = (v) =>
@@ -84,14 +66,29 @@ const hasValue = (v) =>
 
 // The primary contact, falling back to the first contact if none is
 // flagged primary (shouldn't normally happen - the form always keeps one
-// contact marked primary - but this keeps the table from showing nothing).
+// contact marked primary - but this keeps the card from showing nothing).
 const getPrimaryContact = (row) => {
   const contacts = row?.contacts || [];
   if (!contacts.length) return null;
   return contacts.find((c) => c.isPrimary) || contacts[0];
 };
 
-const columnHelper = createColumnHelper();
+// Initials for the avatar circle, e.g. "Ahsan Feeds Mill" -> "AF"
+const getInitials = (name) =>
+  String(name || "")
+    .trim()
+    .split(/\s+/)
+    .map((n) => n[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "?";
+
+// Turns "30,000" / "30000 bags" / "" into a plain number for totals.
+const parseNumber = (v) => {
+  const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
 
 function DetailItem({ icon: Icon, label, value }) {
   return (
@@ -107,17 +104,33 @@ function DetailItem({ icon: Icon, label, value }) {
   );
 }
 
+function StatCard({ label, value, icon: Icon, colorClass }) {
+  return (
+    <Card className="border-border bg-card transition-all duration-300 hover:border-muted-foreground/30">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">{label}</p>
+            <p className={cn("mt-1 text-2xl font-semibold", colorClass)}>
+              {value}
+            </p>
+          </div>
+          <Icon className={cn("h-8 w-8 opacity-50", colorClass)} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function BusinessDirectoryContent() {
   const [districts, setDistricts] = useState([]);
   const [district, setDistrict] = useState("all");
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sorting, setSorting] = useState([{ id: "feedMillName", desc: false }]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
-  const [expandedId, setExpandedId] = useState(null);
+  const [viewingRecord, setViewingRecord] = useState(null); // full-details modal
   const [error, setError] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -126,7 +139,7 @@ function BusinessDirectoryContent() {
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Delete a record via the API and optimistically remove it from the table.
+  // Delete a record via the API and optimistically remove it from the list.
   const handleDelete = useCallback(async (id) => {
     setDeleting({ id });
     try {
@@ -275,7 +288,7 @@ function BusinessDirectoryContent() {
         }).`,
       });
       // New districts may have just been added - refresh the filter dropdown
-      // along with the table itself.
+      // along with the list itself.
       fetchFilters();
       fetchDirectoryData();
     } catch (err) {
@@ -290,313 +303,58 @@ function BusinessDirectoryContent() {
     }
   };
 
-  const feedMillColumns = useMemo(
-    () => [
-      columnHelper.display({
-        id: "expand",
-        header: "",
-        enableSorting: false,
-        meta: {
-          headerClassName: "w-10",
-          cellClassName: "w-10 text-muted-foreground",
-        },
-        cell: ({ row }) => {
-          const rowId =
-            row.original._id || row.original.id || row.original.feedMillName;
-          const isExpanded = expandedId === rowId;
-          return isExpanded ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          );
-        },
-      }),
-      columnHelper.accessor("feedMillName", {
-        header: "Feed Mill",
-        meta: {
-          headerClassName: "w-[30%] min-w-[220px]",
-          cellClassName: "w-[30%] min-w-[220px]",
-        },
-        cell: (info) => {
-          const row = info.row.original;
-          const primaryContact = getPrimaryContact(row);
-          return (
-            <div className="min-w-0 space-y-1">
-              <div className="whitespace-normal word-break-words font-medium leading-snug text-foreground">
-                {info.getValue()}
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                {hasValue(row.districtRegion) && (
-                  <Badge variant="outline" className="max-w-full truncate">
-                    {row.districtRegion}
-                  </Badge>
-                )}
-                {primaryContact && hasValue(primaryContact.name) && (
-                  <span className="truncate">
-                    {primaryContact.name}
-                    {hasValue(primaryContact.designation) &&
-                      ` (${primaryContact.designation}${
-                        hasValue(primaryContact.department)
-                          ? ` - ${primaryContact.department}`
-                          : ""
-                      })`}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        },
-      }),
-      columnHelper.accessor("millAddress", {
-        header: "Address",
-        meta: {
-          headerClassName: "w-[34%] min-w-[260px]",
-          cellClassName: "w-[34%] min-w-[260px]",
-        },
-        cell: (info) => (
-          <div className="line-clamp-2 whitespace-normal word-break-words text-sm leading-relaxed text-muted-foreground">
-            {showValue(info.getValue())}
-          </div>
-        ),
-      }),
-      columnHelper.accessor("millPhones", {
-        header: "Contact",
-        meta: {
-          headerClassName: "hidden lg:table-cell w-[18%]",
-          cellClassName: "hidden lg:table-cell w-[18%]",
-        },
-        cell: (info) => {
-          const row = info.row.original;
-          return (
-            <div className="min-w-0 space-y-1 text-sm">
-              <div className="truncate text-foreground">
-                {showValue(info.getValue())}
-              </div>
-              {hasValue(row.email) && (
-                <div className="truncate text-muted-foreground">
-                  {row.email}
-                </div>
-              )}
-            </div>
-          );
-        },
-      }),
-      columnHelper.accessor("productionCapacity", {
-        header: "Capacity",
-        meta: {
-          headerClassName: "hidden xl:table-cell w-[18%]",
-          cellClassName: "hidden xl:table-cell w-[18%]",
-        },
-        cell: (info) => {
-          const row = info.row.original;
-          return (
-            <div className="min-w-0 space-y-1 text-sm">
-              <div className="truncate text-foreground">
-                {showValue(info.getValue())}
-              </div>
-              {hasValue(row.bagsPerMonth) && (
-                <div className="truncate text-muted-foreground">
-                  {row.bagsPerMonth} bags/month
-                </div>
-              )}
-            </div>
-          );
-        },
-      }),
-    ],
-    [expandedId],
-  );
-
   // Refresh data after a successful form submission (create or update)
   const handleFormSuccess = () => {
     setEditingRecord(null);
-    setFormOpen(false);
     fetchDirectoryData();
   };
 
-  // Action column with Edit + Delete buttons (shared by both table views)
-  const actionsColumn = useMemo(
-    () => [
-      {
-        id: "actions",
-        header: "",
-        enableSorting: false,
-        meta: {
-          headerClassName: "w-[80px]",
-          cellClassName: "w-[80px]",
-        },
-        cell: ({ row }) => {
-          const record = row.original;
-          const recordId = record._id || record.id;
-          return (
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => setEditingRecord(record)}
-                title="Edit"
-              >
-                <Edit className="w-4 h-4" />
-              </Button>
-              <ConfirmDelete
-                title="Delete record"
-                description="Are you sure you want to delete this record? This action cannot be undone."
-                onConfirm={() => handleDelete(recordId)}
-              >
-                <button
-                  type="button"
-                  title="Delete"
-                  disabled={deleting?.id === recordId}
-                  className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center",
-                    "text-red-600 hover:text-red-700 disabled:opacity-50",
-                  )}
-                >
-                  {deleting?.id === recordId ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                </button>
-              </ConfirmDelete>
-            </div>
-          );
-        },
-      },
-    ],
-    [deleting, handleDelete],
+  // Sorted, then paginated client-side (the API already applies search/district).
+  const sortedRows = useMemo(
+    () =>
+      [...rows].sort((a, b) =>
+        String(a.feedMillName || "").localeCompare(
+          String(b.feedMillName || ""),
+        ),
+      ),
+    [rows],
   );
 
-  const columns = [...feedMillColumns, ...actionsColumn];
+  const pageCount = Math.max(
+    1,
+    Math.ceil(sortedRows.length / pagination.pageSize),
+  );
 
-  const table = useReactTable({
-    data: rows,
-    columns,
-    state: { sorting, pagination },
-    onSortingChange: setSorting,
-    onPaginationChange: setPagination,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-  });
+  const paginatedRows = useMemo(() => {
+    const start = pagination.pageIndex * pagination.pageSize;
+    return sortedRows.slice(start, start + pagination.pageSize);
+  }, [sortedRows, pagination]);
 
-  const resultCountLabel = useMemo(() => {
-    if (rows.length === 0) return "0 results";
-    return `Page ${table.getState().pagination.pageIndex + 1} of ${table.getPageCount()} - ${rows.length} results`;
-  }, [rows, table]);
+  const resultCountLabel =
+    rows.length === 0
+      ? "0 results"
+      : `Page ${pagination.pageIndex + 1} of ${pageCount} - ${rows.length} results`;
 
-  const toggleExpanded = (row) => {
-    const rowId = row._id || row.id || row.feedMillName;
-    setExpandedId((prev) => (prev === rowId ? null : rowId));
-  };
+  const goToPage = (delta) =>
+    setPagination((prev) => ({
+      ...prev,
+      pageIndex: Math.min(Math.max(prev.pageIndex + delta, 0), pageCount - 1),
+    }));
 
-  const renderFeedMillDetails = (row) => {
-    const contacts = row.contacts || [];
-    return (
-      <TableRow className="bg-muted/30 hover:bg-muted/30">
-        <TableCell
-          colSpan={columns.length}
-          className="px-5 py-4 whitespace-normal"
-        >
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-              <DetailItem icon={User} label="Owner" value={row.millOwner} />
-              <DetailItem
-                icon={Phone}
-                label="Owner's Contact"
-                value={row.ownerContact}
-              />
-              <DetailItem
-                icon={MapPin}
-                label="Mill Address"
-                value={row.millAddress}
-              />
-              <DetailItem
-                icon={MapPin}
-                label="Office Address"
-                value={row.officeAddress}
-              />
-              <DetailItem
-                icon={Phone}
-                label="Mill Phone(s)"
-                value={row.millPhones}
-              />
-              <DetailItem
-                icon={Phone}
-                label="Office Phone(s)"
-                value={row.officePhones}
-              />
-              <DetailItem icon={Mail} label="Email" value={row.email} />
-              <DetailItem
-                icon={Package}
-                label="Production"
-                value={[
-                  row.productionCapacity &&
-                    `Capacity: ${row.productionCapacity}`,
-                  row.bagsPerMonth && `Bags/month: ${row.bagsPerMonth}`,
-                ]
-                  .filter(Boolean)
-                  .join(" | ")}
-              />
-            </div>
-
-            {contacts.length > 0 && (
-              <div>
-                <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
-                  <User className="h-3.5 w-3.5" />
-                  Contacts ({contacts.length})
-                </div>
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                  {contacts.map((contact, idx) => (
-                    <div
-                      key={contact._id || idx}
-                      className="min-w-0 rounded-md border bg-background p-3"
-                    >
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium text-foreground">
-                          {showValue(contact.name)}
-                        </span>
-                        {contact.isPrimary && (
-                          <Badge className="shrink-0 gap-1 bg-blue-100 text-blue-700 hover:bg-blue-100">
-                            <Star className="h-3 w-3 fill-current" />
-                            Primary
-                          </Badge>
-                        )}
-                      </div>
-                      {(hasValue(contact.designation) ||
-                        hasValue(contact.department)) && (
-                        <div className="mb-1.5 text-xs text-muted-foreground">
-                          {[contact.designation, contact.department]
-                            .filter(hasValue)
-                            .join(" - ")}
-                        </div>
-                      )}
-                      <div className="space-y-0.5 text-xs text-foreground">
-                        {hasValue(contact.mobile) && (
-                          <div className="truncate">
-                            Mobile: {contact.mobile}
-                          </div>
-                        )}
-                        {hasValue(contact.landline) && (
-                          <div className="truncate">
-                            Landline: {contact.landline}
-                          </div>
-                        )}
-                        {hasValue(contact.email) && (
-                          <div className="truncate">{contact.email}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </TableCell>
-      </TableRow>
+  // Summary stats derived from the currently loaded (filtered) rows.
+  const stats = useMemo(() => {
+    const districtCount = new Set(
+      rows.map((r) => r.districtRegion).filter(hasValue),
+    ).size;
+    const totalBagsPerMonth = rows.reduce(
+      (acc, r) => acc + parseNumber(r.bagsPerMonth),
+      0,
     );
-  };
+    const withContacts = rows.filter(
+      (r) => (r.contacts || []).length > 0,
+    ).length;
+    return { districtCount, totalBagsPerMonth, withContacts };
+  }, [rows]);
 
   const directoryColumns = [
     { label: "Feed Mill", key: "feedMillName" },
@@ -649,9 +407,9 @@ function BusinessDirectoryContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap justify-between items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-lg font-bold tracking-tight">
+          <h1 className="text-lg font-bold tracking-tight text-accent">
             Business Directory
           </h1>
         </div>
@@ -668,11 +426,12 @@ function BusinessDirectoryContent() {
             variant="outline"
             onClick={handleBrowseClick}
             disabled={uploading}
+            className="hover:text-accent"
           >
             {uploading ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <Upload className="w-4 h-4 mr-2" />
+              <Upload className="mr-2 h-4 w-4" />
             )}
             {uploading ? "Uploading..." : "Browse Excel File"}
           </Button>
@@ -702,149 +461,259 @@ function BusinessDirectoryContent() {
           className={cn(
             "flex items-start gap-3 rounded-lg border p-4 text-sm",
             uploadMessage.type === "success"
-              ? "bg-green-50 border-green-200 text-green-800"
-              : "bg-red-50 border-red-200 text-red-800",
+              ? "border-green-200 bg-green-50 text-green-800"
+              : "border-red-200 bg-red-50 text-red-800",
           )}
         >
           {uploadMessage.type === "success" ? (
-            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
           ) : (
-            <AlertCircle className="w-5 h-5 shrink-0" />
+            <AlertCircle className="h-5 w-5 shrink-0" />
           )}
           <span className="flex-1">{uploadMessage.text}</span>
           <button
             onClick={() => setUploadMessage(null)}
             className="text-current opacity-70 hover:opacity-100"
           >
-            <X className="w-4 h-4" />
+            <X className="h-4 w-4" />
           </button>
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle>All Feed Mills</CardTitle>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search feed mill, contact, district..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8 w-64"
-                />
-              </div>
-              <Select value={district} onValueChange={setDistrict}>
-                <SelectTrigger className="w-45">
-                  <SelectValue placeholder="All Districts" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Districts</SelectItem>
-                  {districts.map((d) => (
-                    <SelectItem key={d} value={d}>
-                      {d}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              onClick={() => setEditingRecord({ _view: "feed-mills" })}
-              className="shrink-0"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add New Feed Mill
-            </Button>
+      {/* Summary stats */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <StatCard
+          label="Total Feed Mills"
+          value={rows.length}
+          icon={Factory}
+          colorClass="text-foreground"
+        />
+        <StatCard
+          label="Districts Covered"
+          value={stats.districtCount}
+          icon={MapPin}
+          colorClass="text-accent"
+        />
+        <StatCard
+          label="Monthly Production"
+          value={`${stats.totalBagsPerMonth.toLocaleString()} bags`}
+          icon={Package}
+          colorClass="text-chart-3"
+        />
+        <StatCard
+          label="Mills w/ Contacts"
+          value={stats.withContacts}
+          icon={User}
+          colorClass="text-chart-1"
+        />
+      </div>
+
+      {/* Search, filter, add */}
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search feed mill, contact, district..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-70 pl-8"
+            />
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table className="table-fixed">
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      onClick={header.column.getToggleSortingHandler()}
-                      className={cn(
-                        "select-none whitespace-nowrap px-4 py-3",
-                        header.column.getCanSort() && "cursor-pointer",
-                        header.column.columnDef.meta?.headerClassName,
-                      )}
-                    >
-                      <div className="flex items-center gap-1">
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                        {header.column.getIsSorted() === "asc" ? (
-                          <ArrowUp className="w-3 h-3 text-foreground" />
-                        ) : header.column.getIsSorted() === "desc" ? (
-                          <ArrowDown className="w-3 h-3 text-foreground" />
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
-                        )}
-                      </div>
-                    </TableHead>
-                  ))}
-                </TableRow>
+          <Select value={district} onValueChange={setDistrict}>
+            <SelectTrigger className="w-45">
+              <SelectValue placeholder="All Districts" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Districts</SelectItem>
+              {districts.map((d) => (
+                <SelectItem key={d} value={d}>
+                  {d}
+                </SelectItem>
               ))}
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="text-center py-6"
-                  >
-                    Loading...
-                  </TableCell>
-                </TableRow>
-              ) : table.getRowModel().rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="text-center py-6 text-muted-foreground"
-                  >
-                    No records found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                table.getRowModel().rows.map((row) => (
-                  <React.Fragment key={row.id}>
-                    <TableRow
-                      onClick={() => toggleExpanded(row.original)}
-                      className="cursor-pointer align-top hover:bg-muted/40"
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          onClick={() => setEditingRecord({ _view: "feed-mills" })}
+          className="shrink-0 bg-black text-accent -foreground hover:bg-accent hover:text-black border-accent"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add New Feed Mill
+        </Button>
+      </div>
+
+      {/* Feed mill cards */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <KPISkeleton key={i} />
+          ))}
+        </div>
+      ) : paginatedRows.length === 0 ? (
+        <div className="flex items-center justify-center rounded-lg border border-border bg-card py-16 text-sm text-muted-foreground">
+          No records found.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {paginatedRows.map((row, index) => {
+            const recordId = row._id || row.id;
+            const primaryContact = getPrimaryContact(row);
+            const contacts = row.contacts || [];
+
+            return (
+              <Card
+                key={recordId || row.feedMillName || index}
+                className="group border-border bg-card transition-all duration-300 hover:border-accent/50"
+              >
+                <CardContent className="p-5">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary font-semibold text-foreground">
+                        {getInitials(row.feedMillName)}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="truncate font-semibold text-foreground transition-colors group-hover:text-accent">
+                          {showValue(row.feedMillName)}
+                        </h3>
+                        <p className="truncate text-sm text-muted-foreground">
+                          {row.millOwner
+                            ? `Owner: ${row.millOwner}`
+                            : primaryContact?.name
+                              ? `${primaryContact.name}${
+                                  primaryContact.designation
+                                    ? ` (${primaryContact.designation})`
+                                    : ""
+                                }`
+                              : "\u00A0"}
+                        </p>
+                      </div>
+                    </div>
+                    {hasValue(row.districtRegion) && (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 max-w-[45%] truncate"
+                      >
+                        {row.districtRegion}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span className="line-clamp-2">
+                          {showValue(row.millAddress)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Phone className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">
+                          {showValue(row.millPhones)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{showValue(row.email)}</span>
+                      </div>
+                    </div>
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Capacity</span>
+                        <span className="truncate font-medium text-foreground">
+                          {showValue(row.productionCapacity)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">
+                          Bags/Month
+                        </span>
+                        <span className="truncate font-medium text-foreground">
+                          {showValue(row.bagsPerMonth)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Contacts</span>
+                        <span className="font-medium text-foreground">
+                          {contacts.length}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Primary contact strip */}
+                  <div className="flex items-center justify-between border-t border-border pt-4">
+                    <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+                      <User className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">
+                        {primaryContact
+                          ? `${primaryContact.name}${
+                              primaryContact.mobile
+                                ? ` \u00B7 ${primaryContact.mobile}`
+                                : ""
+                            }`
+                          : "No contact on file"}
+                      </span>
+                    </div>
+                    {primaryContact?.isPrimary && (
+                      <Badge className="shrink-0 gap-1 bg-blue-100 text-blue-700 hover:bg-blue-100">
+                        <Star className="h-3 w-3 fill-current" />
+                        Primary
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 bg-transparent"
+                      onClick={() => setEditingRecord(row)}
                     >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell
-                          key={cell.id}
-                          className={cn(
-                            "px-4 py-3 align-top whitespace-normal",
-                            cell.column.columnDef.meta?.cellClassName,
-                          )}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                    {expandedId ===
-                    (row.original._id ||
-                      row.original.id ||
-                      row.original.feedMillName)
-                      ? renderFeedMillDetails(row.original)
-                      : null}
-                  </React.Fragment>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-        <CardFooter className="flex flex-wrap items-center justify-between gap-4 border-t py-4">
+                      <Edit className="mr-1.5 h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                    <ConfirmDelete
+                      title="Delete record"
+                      description="Are you sure you want to delete this record? This action cannot be undone."
+                      onConfirm={() => handleDelete(recordId)}
+                    >
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        disabled={deleting?.id === recordId}
+                        className="flex-1 bg-transparent text-red-600 hover:text-red-700"
+                      >
+                        {deleting?.id === recordId ? (
+                          <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        Delete
+                      </Button>
+                    </ConfirmDelete>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="View full details"
+                      onClick={() => setViewingRecord(row)}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination footer */}
+      <Card>
+        <CardFooter className="flex flex-wrap items-center justify-between gap-4 py-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>Rows per page</span>
             <Select
@@ -857,7 +726,7 @@ function BusinessDirectoryContent() {
                 }))
               }
             >
-              <SelectTrigger className="w-20 h-8">
+              <SelectTrigger className="h-8 w-20">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -879,31 +748,180 @@ function BusinessDirectoryContent() {
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
+                onClick={() => goToPage(-1)}
+                disabled={pagination.pageIndex === 0}
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
+                onClick={() => goToPage(1)}
+                disabled={pagination.pageIndex >= pageCount - 1}
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </CardFooter>
       </Card>
 
+      {/* Full-details modal - opened via the ExternalLink icon on a card */}
+      {viewingRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-background shadow-xl">
+            <div className="flex items-center justify-between gap-4 border-b p-6">
+              <div className="min-w-0">
+                <h3 className="truncate text-base font-semibold text-foreground">
+                  {showValue(viewingRecord.feedMillName)}
+                </h3>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  {hasValue(viewingRecord.districtRegion) && (
+                    <Badge variant="outline">
+                      {viewingRecord.districtRegion}
+                    </Badge>
+                  )}
+                  {viewingRecord.millOwner && (
+                    <span>Owner: {viewingRecord.millOwner}</span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingRecord(null)}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-6">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                  <DetailItem
+                    icon={User}
+                    label="Owner"
+                    value={viewingRecord.millOwner}
+                  />
+                  <DetailItem
+                    icon={Phone}
+                    label="Owner's Contact"
+                    value={viewingRecord.ownerContact}
+                  />
+                  <DetailItem
+                    icon={MapPin}
+                    label="Mill Address"
+                    value={viewingRecord.millAddress}
+                  />
+                  <DetailItem
+                    icon={MapPin}
+                    label="Office Address"
+                    value={viewingRecord.officeAddress}
+                  />
+                  <DetailItem
+                    icon={Phone}
+                    label="Mill Phone(s)"
+                    value={viewingRecord.millPhones}
+                  />
+                  <DetailItem
+                    icon={Phone}
+                    label="Office Phone(s)"
+                    value={viewingRecord.officePhones}
+                  />
+                  <DetailItem
+                    icon={Mail}
+                    label="Email"
+                    value={viewingRecord.email}
+                  />
+                  <DetailItem
+                    icon={Package}
+                    label="Production"
+                    value={[
+                      viewingRecord.productionCapacity &&
+                        `Capacity: ${viewingRecord.productionCapacity}`,
+                      viewingRecord.bagsPerMonth &&
+                        `Bags/month: ${viewingRecord.bagsPerMonth}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ")}
+                  />
+                </div>
+
+                {(viewingRecord.contacts || []).length > 0 && (
+                  <div>
+                    <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
+                      <User className="h-3.5 w-3.5" />
+                      Contacts ({viewingRecord.contacts.length})
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                      {viewingRecord.contacts.map((contact, idx) => (
+                        <div
+                          key={contact._id || idx}
+                          className="min-w-0 rounded-md border bg-background p-3"
+                        >
+                          <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-medium text-foreground">
+                              {showValue(contact.name)}
+                            </span>
+                            {contact.isPrimary && (
+                              <Badge className="shrink-0 gap-1 bg-blue-100 text-blue-700 hover:bg-blue-100">
+                                <Star className="h-3 w-3 fill-current" />
+                                Primary
+                              </Badge>
+                            )}
+                          </div>
+                          {(hasValue(contact.designation) ||
+                            hasValue(contact.department)) && (
+                            <div className="mb-1.5 text-xs text-muted-foreground">
+                              {[contact.designation, contact.department]
+                                .filter(hasValue)
+                                .join(" - ")}
+                            </div>
+                          )}
+                          <div className="space-y-0.5 text-xs text-foreground">
+                            {hasValue(contact.mobile) && (
+                              <div className="truncate">
+                                Mobile: {contact.mobile}
+                              </div>
+                            )}
+                            {hasValue(contact.landline) && (
+                              <div className="truncate">
+                                Landline: {contact.landline}
+                              </div>
+                            )}
+                            {hasValue(contact.email) && (
+                              <div className="truncate">{contact.email}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t p-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingRecord(viewingRecord);
+                  setViewingRecord(null);
+                }}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+              <Button onClick={() => setViewingRecord(null)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Browse Excel dialog - download a correctly-formatted template, or
           go straight to picking a file to upload */}
       {showUploadDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b p-6">
               <h3 className="text-base font-semibold text-foreground">
                 Import Feed Mills
               </h3>
@@ -911,10 +929,10 @@ function BusinessDirectoryContent() {
                 onClick={() => setShowUploadDialog(false)}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <X className="w-5 h-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-6 space-y-3">
+            <div className="space-y-3 p-6">
               <p className="text-sm text-muted-foreground">
                 Not sure about the column headers? Download the format file
                 first — it has the exact headers we expect, plus one example
@@ -927,16 +945,16 @@ function BusinessDirectoryContent() {
                 className="w-full"
               >
                 {downloadingTemplate ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <FileDown className="w-4 h-4 mr-2" />
+                  <FileDown className="mr-2 h-4 w-4" />
                 )}
                 {downloadingTemplate
                   ? "Downloading..."
                   : "Download Format File"}
               </Button>
               <Button onClick={handleChooseUpload} className="w-full">
-                <Upload className="w-4 h-4 mr-2" />
+                <Upload className="mr-2 h-4 w-4" />
                 Upload Excel File
               </Button>
             </div>

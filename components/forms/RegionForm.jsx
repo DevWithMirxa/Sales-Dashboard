@@ -121,9 +121,12 @@ export default function RegionForm({ onClose, initialData, onSuccess }) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4 **:data-[slot='input']:border-accent **:data-[slot='textarea']:border-accent **:data-[slot='select-trigger']:border-accent **:data-[slot='button']:bg-black **:data-[slot='button']:text-accent"
+        >
           {formError && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-md border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-soft-foreground">
               {formError}
             </div>
           )}
@@ -131,7 +134,7 @@ export default function RegionForm({ onClose, initialData, onSuccess }) {
           <div className="space-y-1.5">
             <Label htmlFor="region">
               Region
-              <span className="text-red-500 ml-0.5">*</span>
+              <span className="text-destructive ml-0.5">*</span>
             </Label>
 
             {showCustomRegion ? (
@@ -166,7 +169,7 @@ export default function RegionForm({ onClose, initialData, onSuccess }) {
             </Button>
 
             {errors.region && (
-              <p className="text-xs text-red-600">{errors.region}</p>
+              <p className="text-xs text-destructive">{errors.region}</p>
             )}
           </div>
 

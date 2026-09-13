@@ -1,13 +1,13 @@
-import { cn } from '@/lib/utils'
+import React from "react";
+import { cn } from "@/lib/utils";
 
-export function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
+export function Skeleton({ className, ...props }) {
   return (
     <div
-      data-slot="skeleton"
-      className={cn('bg-muted/60 animate-pulse rounded-lg', className)}
+      className={cn("bg-muted/60 animate-pulse rounded-lg", className)}
       {...props}
     />
-  )
+  );
 }
 
 export function KPISkeleton() {
@@ -25,7 +25,7 @@ export function KPISkeleton() {
   );
 }
 
-export function ChartSkeleton({ height = "h-[300px]" }: { height?: string }) {
+export function ChartSkeleton({ height = "h-[300px]" }) {
   return (
     <div className="bg-card/90 rounded-xl border border-border/70 p-5 space-y-4 shadow-xs">
       <div className="flex items-center justify-between border-b border-border/40 pb-3">
@@ -45,7 +45,7 @@ export function ChartSkeleton({ height = "h-[300px]" }: { height?: string }) {
   );
 }
 
-export function TableSkeleton({ rows = 5 }: { rows?: number }) {
+export function TableSkeleton({ rows = 5 }) {
   return (
     <div className="bg-card/90 rounded-xl border border-border/70 overflow-hidden p-4 space-y-3">
       <div className="flex items-center justify-between pb-2 border-b border-border/40">
@@ -63,4 +63,3 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
     </div>
   );
 }
-

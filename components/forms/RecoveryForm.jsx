@@ -74,10 +74,11 @@ const computePreview = (formData) => {
 };
 
 const STATUS_STYLES = {
-  Paid: "bg-green-100 text-green-800 hover:bg-green-100",
-  Partial: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
-  Overdue: "bg-red-100 text-red-800 hover:bg-red-100",
-  Pending: "bg-gray-100 text-gray-600 hover:bg-gray-100",
+  Paid: "bg-success-soft text-success-soft-foreground hover:bg-success-soft",
+  Partial: "bg-warning-soft text-warning-soft-foreground hover:bg-warning-soft",
+  Overdue:
+    "bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft",
+  Pending: "bg-secondary text-secondary-foreground hover:bg-secondary",
 };
 
 export default function RecoveryForm({ onClose, initialData, onSuccess }) {
@@ -224,13 +225,16 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
         </DialogHeader>
 
         {loadingOptions ? (
-          <div className="flex items-center justify-center py-12 text-sm text-gray-500">
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
             <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Loading options...
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-6 **:data-[slot='input']:border-accent **:data-[slot='textarea']:border-accent **:data-[slot='select-trigger']:border-accent **:data-[slot='button']:bg-black **:data-[slot='button']:text-accent"
+          >
             {formError && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div className="rounded-md border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-soft-foreground">
                 {formError}
               </div>
             )}
@@ -238,7 +242,7 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="salesperson">
-                  Salesperson<span className="text-red-500 ml-0.5">*</span>
+                  Salesperson<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Select
                   value={formData.salesperson || ""}
@@ -256,13 +260,15 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
                   </SelectContent>
                 </Select>
                 {errors.salesperson && (
-                  <p className="text-xs text-red-600">{errors.salesperson}</p>
+                  <p className="text-xs text-destructive">
+                    {errors.salesperson}
+                  </p>
                 )}
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="customer">
-                  Customer<span className="text-red-500 ml-0.5">*</span>
+                  Customer<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Select
                   value={formData.customer || ""}
@@ -280,13 +286,13 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
                   </SelectContent>
                 </Select>
                 {errors.customer && (
-                  <p className="text-xs text-red-600">{errors.customer}</p>
+                  <p className="text-xs text-destructive">{errors.customer}</p>
                 )}
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="region">
-                  Region<span className="text-red-500 ml-0.5">*</span>
+                  Region<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Select
                   value={formData.region || ""}
@@ -304,13 +310,13 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
                   </SelectContent>
                 </Select>
                 {errors.region && (
-                  <p className="text-xs text-red-600">{errors.region}</p>
+                  <p className="text-xs text-destructive">{errors.region}</p>
                 )}
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="invoiceNumber">
-                  Invoice #<span className="text-red-500 ml-0.5">*</span>
+                  Invoice #<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Input
                   id="invoiceNumber"
@@ -322,7 +328,9 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
                   placeholder="e.g. INV-2026-0451"
                 />
                 {errors.invoiceNumber && (
-                  <p className="text-xs text-red-600">{errors.invoiceNumber}</p>
+                  <p className="text-xs text-destructive">
+                    {errors.invoiceNumber}
+                  </p>
                 )}
               </div>
             </div>
@@ -330,7 +338,7 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="invoiceDate">
-                  Invoice Date<span className="text-red-500 ml-0.5">*</span>
+                  Invoice Date<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Input
                   id="invoiceDate"
@@ -339,13 +347,15 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
                   onChange={(e) => handleChange("invoiceDate", e.target.value)}
                 />
                 {errors.invoiceDate && (
-                  <p className="text-xs text-red-600">{errors.invoiceDate}</p>
+                  <p className="text-xs text-destructive">
+                    {errors.invoiceDate}
+                  </p>
                 )}
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="dueDate">
-                  Due Date<span className="text-red-500 ml-0.5">*</span>
+                  Due Date<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Input
                   id="dueDate"
@@ -354,7 +364,7 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
                   onChange={(e) => handleChange("dueDate", e.target.value)}
                 />
                 {errors.dueDate && (
-                  <p className="text-xs text-red-600">{errors.dueDate}</p>
+                  <p className="text-xs text-destructive">{errors.dueDate}</p>
                 )}
               </div>
 
@@ -366,7 +376,7 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
                   value={formData.recoveryDate}
                   onChange={(e) => handleChange("recoveryDate", e.target.value)}
                 />
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                   Leave blank until payment is received.
                 </p>
               </div>
@@ -402,17 +412,17 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
 
             {/* Live preview of the auto-calculated fields - never submitted,
                 just mirrors what the backend will compute. */}
-            <div className="rounded-md border border-gray-200 bg-gray-50 p-3 flex flex-wrap items-center gap-4 text-sm">
-              <span className="text-gray-600">
+            <div className="rounded-md border border-border bg-muted/50 p-3 flex flex-wrap items-center gap-4 text-sm">
+              <span className="text-muted-foreground">
                 Balance:{" "}
-                <span className="font-semibold text-gray-900">
+                <span className="font-semibold text-foreground">
                   Rs {preview.balance.toLocaleString()}
                 </span>
               </span>
               {preview.daysOverdue > 0 && (
-                <span className="text-gray-600">
+                <span className="text-muted-foreground">
                   Days Overdue:{" "}
-                  <span className="font-semibold text-red-600">
+                  <span className="font-semibold text-destructive">
                     {preview.daysOverdue}
                   </span>
                 </span>
@@ -423,7 +433,7 @@ export default function RecoveryForm({ onClose, initialData, onSuccess }) {
                 </Badge>
               )}
               {!preview.status && (
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-muted-foreground">
                   Set a Due Date to see the calculated status
                 </span>
               )}

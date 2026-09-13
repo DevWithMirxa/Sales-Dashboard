@@ -208,9 +208,12 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4 **:data-[slot='input']:border-accent **:data-[slot='textarea']:border-accent **:data-[slot='select-trigger']:border-accent **:data-[slot='button']:bg-black **:data-[slot='button']:text-accent"
+        >
           {formError && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-md border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-soft-foreground">
               {formError}
             </div>
           )}
@@ -219,7 +222,7 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="name">
                 Product Name
-                <span className="text-red-500 ml-0.5">*</span>
+                <span className="text-destructive ml-0.5">*</span>
               </Label>
               {showCustomProduct ? (
                 <Input
@@ -254,14 +257,14 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
                 {showCustomProduct ? "Use Existing Product" : "New Product"}
               </Button>
               {errors.name && (
-                <p className="text-xs text-red-600">{errors.name}</p>
+                <p className="text-xs text-destructive">{errors.name}</p>
               )}
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="pricePerKg">
                 Price (Rs/Kg)
-                <span className="text-red-500 ml-0.5">*</span>
+                <span className="text-destructive ml-0.5">*</span>
               </Label>
               <Input
                 id="pricePerKg"
@@ -273,14 +276,14 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
                 placeholder="Enter price per kg"
               />
               {errors.pricePerKg && (
-                <p className="text-xs text-red-600">{errors.pricePerKg}</p>
+                <p className="text-xs text-destructive">{errors.pricePerKg}</p>
               )}
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="packingKg">
                 Packing (Kg)
-                <span className="text-red-500 ml-0.5">*</span>
+                <span className="text-destructive ml-0.5">*</span>
               </Label>
               <Input
                 id="packingKg"
@@ -292,7 +295,7 @@ export default function ProductForm({ onClose, initialData, onSuccess }) {
                 placeholder="Enter packing size in kg"
               />
               {errors.packingKg && (
-                <p className="text-xs text-red-600">{errors.packingKg}</p>
+                <p className="text-xs text-destructive">{errors.packingKg}</p>
               )}
             </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import UserForm from "@/components/forms/UserForm";
@@ -19,13 +19,19 @@ import api from "@/lib/api";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
 import ConfirmDelete from "@/components/ConfirmDelete";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
+// Status badge colors, mapped onto the shared semantic tokens instead of
+// hardcoded light-mode pastels.
 const STATUS_STYLES = {
-  active: "bg-green-100 text-green-700",
-  inactive: "bg-gray-100 text-gray-600",
-  pending: "bg-slate-800 text-white",
-  suspended: "bg-orange-100 text-orange-700",
-  banned: "bg-red-100 text-red-700",
+  active: "bg-success/20 text-success border-success/30",
+  inactive: "bg-muted text-muted-foreground border-border",
+  pending: "bg-chart-1/20 text-chart-1 border-chart-1/30",
+  suspended: "bg-warning/20 text-warning border-warning/30",
+  banned: "bg-destructive/20 text-destructive border-destructive/30",
 };
 
 const AVATAR_COLORS = [
@@ -325,7 +331,7 @@ function Users() {
             type="checkbox"
             checked={allPageSelected}
             onChange={toggleSelectAllOnPage}
-            className="w-4 h-4 rounded border-gray-300"
+            className="h-4 w-4 rounded border-border accent-accent"
           />
         ),
         enableSorting: false,
@@ -336,7 +342,7 @@ function Users() {
             checked={selectedIds.has(row.original._id)}
             onChange={() => toggleSelectOne(row.original._id)}
             onClick={(e) => e.stopPropagation()}
-            className="w-4 h-4 rounded border-gray-300"
+            className="h-4 w-4 rounded border-border accent-accent"
           />
         ),
       },
@@ -347,13 +353,16 @@ function Users() {
         cell: ({ row }) => {
           const u = row.original;
           return (
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold shrink-0 ${getAvatarColor(u.name)}`}
+                className={cn(
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white",
+                  getAvatarColor(u.name),
+                )}
               >
                 {getInitials(u.name)}
               </div>
-              <span className="text-gray-900 font-medium truncate">
+              <span className="truncate font-medium text-foreground">
                 {u.name}
               </span>
             </div>
@@ -365,7 +374,10 @@ function Users() {
         header: "Email",
         meta: { headerClassName: "w-[20%]", cellClassName: "w-[20%] truncate" },
         cell: ({ getValue }) => (
-          <span className="truncate block" title={getValue()}>
+          <span
+            className="block truncate text-muted-foreground"
+            title={getValue()}
+          >
             {getValue()}
           </span>
         ),
@@ -377,11 +389,14 @@ function Users() {
         cell: ({ getValue }) => {
           const status = getValue() || "active";
           return (
-            <span
-              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium capitalize whitespace-nowrap ${STATUS_STYLES[status] || STATUS_STYLES.active}`}
+            <Badge
+              className={cn(
+                "border capitalize whitespace-nowrap",
+                STATUS_STYLES[status] || STATUS_STYLES.active,
+              )}
             >
               {status}
-            </span>
+            </Badge>
           );
         },
       },
@@ -390,7 +405,9 @@ function Users() {
         header: "Role",
         meta: { headerClassName: "w-[9%]", cellClassName: "w-[9%]" },
         cell: ({ getValue }) => (
-          <span className="capitalize whitespace-nowrap">{getValue()}</span>
+          <span className="whitespace-nowrap capitalize text-foreground">
+            {getValue()}
+          </span>
         ),
       },
       {
@@ -400,7 +417,11 @@ function Users() {
           headerClassName: "w-[11%] whitespace-nowrap",
           cellClassName: "w-[11%] whitespace-nowrap",
         },
-        cell: ({ getValue }) => formatDate(getValue()),
+        cell: ({ getValue }) => (
+          <span className="text-muted-foreground">
+            {formatDate(getValue())}
+          </span>
+        ),
       },
       {
         accessorKey: "lastActiveAt",
@@ -409,7 +430,11 @@ function Users() {
           headerClassName: "w-[11%] whitespace-nowrap",
           cellClassName: "w-[11%] whitespace-nowrap",
         },
-        cell: ({ getValue }) => formatRelativeTime(getValue()),
+        cell: ({ getValue }) => (
+          <span className="text-muted-foreground">
+            {formatRelativeTime(getValue())}
+          </span>
+        ),
       },
       {
         id: "actions",
@@ -420,10 +445,10 @@ function Users() {
           <div className="flex gap-2">
             <button
               onClick={() => handleEdit(row.original)}
-              className="text-blue-600 hover:text-blue-900"
+              className="text-accent hover:text-accent/80"
               title="Edit"
             >
-              <Edit2 className="w-4 h-4" />
+              <Edit2 className="h-4 w-4" />
             </button>
             <ConfirmDelete
               title="Delete user"
@@ -431,10 +456,10 @@ function Users() {
               onConfirm={() => handleDelete(row.original._id)}
             >
               <button
-                className="text-red-600 hover:text-red-700"
+                className="text-red-500 hover:text-red-400"
                 title="Delete"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="h-4 w-4" />
               </button>
             </ConfirmDelete>
           </div>
@@ -465,8 +490,10 @@ function Users() {
     <DashboardLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">User Management</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-lg font-bold tracking-tight text-accent">
+            User Management
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage all users in one place. Control access, assign roles, and
             monitor activity across your platform.
           </p>
@@ -474,21 +501,21 @@ function Users() {
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-50">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="relative min-w-50 flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search"
-              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-full border border-border bg-secondary py-2 pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </div>
 
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-full text-sm capitalize focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-full border border-border bg-secondary px-4 py-2 text-sm capitalize text-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
           >
             <option value="all">All Roles</option>
             {roles.map((r) => (
@@ -501,7 +528,7 @@ function Users() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-full text-sm capitalize focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-full border border-border bg-secondary px-4 py-2 text-sm capitalize text-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
           >
             <option value="all">All Statuses</option>
             {statuses.map((s) => (
@@ -514,7 +541,7 @@ function Users() {
           <select
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-full border border-border bg-secondary px-4 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
           >
             <option value="all">All Time</option>
             <option value="7d">Last 7 Days</option>
@@ -529,25 +556,25 @@ function Users() {
             buttonClassName="!rounded-full"
           />
 
-          <button
+          <Button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-full text-xs font-medium hover:bg-blue-700 transition-colors"
+            className="rounded-full bg-accent text-primary hover:bg-background hover:text-accent"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="mr-2 h-4 w-4" />
             Add User
-          </button>
+          </Button>
         </div>
 
         {selectedIds.size > 0 && (
-          <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
-            <span className="text-sm font-medium text-red-700">
+          <div className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5">
+            <span className="text-sm font-medium text-destructive">
               {selectedIds.size} user{selectedIds.size === 1 ? "" : "s"}{" "}
               selected
             </span>
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setSelectedIds(new Set())}
-                className="text-sm text-gray-600 hover:text-gray-900"
+                className="text-sm text-muted-foreground hover:text-foreground"
               >
                 Clear selection
               </button>
@@ -556,35 +583,38 @@ function Users() {
                 description={`Delete ${selectedIds.size} selected user${selectedIds.size === 1 ? "" : "s"}? This cannot be undone.`}
                 onConfirm={handleBulkDelete}
               >
-                <button className="flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-700 transition-colors">
-                  <Trash2 className="w-4 h-4" />
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="mr-2 h-4 w-4" />
                   Delete Selected
-                </button>
+                </Button>
               </ConfirmDelete>
             </div>
           </div>
         )}
 
-        <TanStackDataTable
-          columns={columns}
-          data={paginatedUsers}
-          loading={loading}
-          emptyMessage="No users found."
-          getRowId={(row) => row._id}
-          sorting={sorting}
-          onSortingChange={setSorting}
-          wrapperClassName="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden [&_table]:table-fixed [&_table]:w-full [&_th]:px-3 [&_td]:px-3 [&_th]:py-2.5 [&_td]:py-3"
-        />
+        {loading ? (
+          <TableSkeleton rows={8} />
+        ) : (
+          <TanStackDataTable
+            columns={columns}
+            data={paginatedUsers}
+            emptyMessage="No users found."
+            getRowId={(row) => row._id}
+            sorting={sorting}
+            onSortingChange={setSorting}
+            wrapperClassName="bg-card border border-border rounded-xl overflow-hidden [&_table]:table-fixed [&_table]:w-full [&_th]:px-3 [&_td]:px-3 [&_th]:py-2.5 [&_td]:py-3"
+          />
+        )}
 
         {/* Pagination */}
         {!loading && sortedUsers.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <span>Rows per page</span>
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
-                className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="rounded-lg border border-border bg-secondary px-2 py-1 text-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
               >
                 {[10, 25, 50, 100].map((n) => (
                   <option key={n} value={n}>
@@ -601,26 +631,27 @@ function Users() {
               <button
                 onClick={() => setPage(1)}
                 disabled={currentPage === 1}
-                className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                className="rounded-full border border-border p-2 hover:bg-secondary disabled:opacity-40"
               >
-                <ChevronsLeft className="w-4 h-4" />
+                <ChevronsLeft className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                className="rounded-full border border-border p-2 hover:bg-secondary disabled:opacity-40"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="h-4 w-4" />
               </button>
               {pageNumbers.map((p) => (
                 <button
                   key={p}
                   onClick={() => setPage(p)}
-                  className={`w-8 h-8 rounded-full text-sm font-medium ${
+                  className={cn(
+                    "h-8 w-8 rounded-full text-sm font-medium",
                     p === currentPage
-                      ? "bg-slate-800 text-white"
-                      : "border border-gray-300 hover:bg-gray-50"
-                  }`}
+                      ? "bg-accent text-accent-foreground"
+                      : "border border-border text-foreground hover:bg-secondary",
+                  )}
                 >
                   {p}
                 </button>
@@ -628,16 +659,16 @@ function Users() {
               <button
                 onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
                 disabled={currentPage === pageCount}
-                className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                className="rounded-full border border-border p-2 hover:bg-secondary disabled:opacity-40"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setPage(pageCount)}
                 disabled={currentPage === pageCount}
-                className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                className="rounded-full border border-border p-2 hover:bg-secondary disabled:opacity-40"
               >
-                <ChevronsRight className="w-4 h-4" />
+                <ChevronsRight className="h-4 w-4" />
               </button>
             </div>
           </div>

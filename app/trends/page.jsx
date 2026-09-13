@@ -97,10 +97,10 @@ const achievementClass = (pct) => {
   if (pct === null || pct === undefined)
     return "text-muted-foreground border-muted";
   if (pct >= 100)
-    return "bg-green-100 text-green-700 hover:bg-green-100 border-transparent";
+    return "border-0 bg-green-500/15 text-green-400 hover:bg-green-500/15";
   if (pct >= 70)
-    return "bg-amber-100 text-amber-700 hover:bg-amber-100 border-transparent";
-  return "bg-red-100 text-red-700 hover:bg-red-100 border-transparent";
+    return "border-0 bg-amber-500/15 text-amber-400 hover:bg-amber-500/15";
+  return "border-0 bg-red-500/15 text-red-400 hover:bg-red-500/15";
 };
 
 // "2025-01" -> "Jan 25"
@@ -475,9 +475,17 @@ function TrendsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap justify-between items-center gap-4">
-        <h1 className="text-lg font-bold tracking-tight">Trends</h1>
-        <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-accent">
+            Sales Trends
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Compare sales performance against targets across products and
+            salespeople.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
           <DownloadButton
             onExcel={handleExportExcel}
             onPdf={handleExportPDF}
@@ -541,8 +549,8 @@ function TrendsContent() {
           className={cn(
             "flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm",
             uploadMessage.type === "success"
-              ? "bg-green-50 border-green-200 text-green-800"
-              : "bg-red-50 border-red-200 text-red-800",
+              ? "border-green-500/30 bg-green-500/10 text-green-300"
+              : "border-red-500/30 bg-red-500/10 text-red-300",
           )}
         >
           <div className="flex items-start gap-2">
@@ -565,7 +573,7 @@ function TrendsContent() {
 
       {/* Top performer summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card className="border-border bg-card transition-colors hover:border-accent/40">
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
@@ -591,7 +599,7 @@ function TrendsContent() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card transition-colors hover:border-accent/40">
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
@@ -616,7 +624,7 @@ function TrendsContent() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card transition-colors hover:border-accent/40">
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
@@ -630,7 +638,7 @@ function TrendsContent() {
                     <p className="text-lg font-semibold truncate mt-1">
                       {stats.byAchv[entityKey]}
                     </p>
-                    <p className="text-sm text-green-600 font-medium">
+                    <p className="text-sm text-accent font-medium">
                       {formatPct(stats.byAchv.valueAchievementPct)}
                     </p>
                   </>
@@ -643,7 +651,7 @@ function TrendsContent() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card transition-colors hover:border-accent/40">
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
@@ -671,8 +679,8 @@ function TrendsContent() {
       </div>
 
       {/* Top 10 overview chart */}
-      <Card>
-        <CardHeader>
+      <Card className="border-border bg-card">
+        <CardHeader className="border-b border-border pb-5">
           <CardTitle>
             Top 10 {view === "product" ? "Products" : "Salespeople"} by Sale
             Value
@@ -691,20 +699,33 @@ function TrendsContent() {
                 data={top10}
                 margin={{ top: 10, right: 20, left: 0, bottom: 60 }}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="oklch(0.22 0.005 260)"
+                  vertical={false}
+                />
                 <XAxis
                   dataKey={entityKey}
                   angle={-35}
                   textAnchor="end"
                   interval={0}
                   height={80}
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: "oklch(0.65 0 0)" }}
                 />
                 <YAxis
                   tickFormatter={(v) => formatCompact(v)}
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: "oklch(0.65 0 0)" }}
                 />
-                <Tooltip formatter={(v) => formatRs(v)} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "oklch(0.12 0.005 260)",
+                    border: "1px solid oklch(0.22 0.005 260)",
+                    borderRadius: "8px",
+                  }}
+                  labelStyle={{ color: "oklch(0.95 0 0)" }}
+                  itemStyle={{ color: "oklch(0.95 0 0)" }}
+                  formatter={(v) => formatRs(v)}
+                />
                 <Bar
                   dataKey="saleValueRs"
                   name="Sale Value"
@@ -717,8 +738,8 @@ function TrendsContent() {
                       key={index}
                       fill={
                         entry[entityKey] === selectedEntity
-                          ? "oklch(0.488 0.243 264.376)"
-                          : "oklch(0.6 0.2 240)"
+                          ? "oklch(0.7 0.18 145)"
+                          : "oklch(0.7 0.18 220)"
                       }
                     />
                   ))}
@@ -731,8 +752,8 @@ function TrendsContent() {
 
       {/* Drill-down monthly trend chart */}
       {selectedEntity && (
-        <Card>
-          <CardHeader>
+        <Card className="border-border bg-card">
+          <CardHeader className="border-b border-border pb-5">
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-primary" />
               Monthly Trend — {selectedEntity}
@@ -749,25 +770,41 @@ function TrendsContent() {
                   data={entityChartData}
                   margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="oklch(0.22 0.005 260)"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="period"
+                    tick={{ fontSize: 11, fill: "oklch(0.65 0 0)" }}
+                  />
                   <YAxis
                     tickFormatter={(v) => formatCompact(v)}
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: "oklch(0.65 0 0)" }}
                   />
-                  <Tooltip formatter={(v) => formatRs(v)} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "oklch(0.12 0.005 260)",
+                      border: "1px solid oklch(0.22 0.005 260)",
+                      borderRadius: "8px",
+                    }}
+                    labelStyle={{ color: "oklch(0.95 0 0)" }}
+                    itemStyle={{ color: "oklch(0.95 0 0)" }}
+                    formatter={(v) => formatRs(v)}
+                  />
                   <Legend />
                   <Line
                     type="monotone"
                     dataKey="Target"
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="oklch(0.65 0 0)"
                     strokeWidth={2}
                     dot={false}
                   />
                   <Line
                     type="monotone"
                     dataKey="Sale"
-                    stroke="hsl(var(--primary))"
+                    stroke="oklch(0.7 0.18 145)"
                     strokeWidth={2}
                     dot={{ r: 3 }}
                   />
@@ -779,22 +816,22 @@ function TrendsContent() {
       )}
 
       {/* Data table */}
-      <Card>
-        <CardHeader>
+      <Card className="border-border bg-card overflow-hidden">
+        <CardHeader className="border-b border-border pb-5">
           <CardTitle>
             {view === "product" ? "All Products" : "All Salespeople"}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-secondary/60">
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
+                <TableRow key={headerGroup.id} className="border-border/70">
                   {headerGroup.headers.map((header) => (
                     <TableHead
                       key={header.id}
                       onClick={header.column.getToggleSortingHandler()}
-                      className="cursor-pointer select-none whitespace-nowrap"
+                      className="cursor-pointer select-none whitespace-nowrap px-4 py-3 text-xs font-semibold text-foreground hover:text-accent"
                     >
                       <div className="flex items-center gap-1">
                         {flexRender(
@@ -839,13 +876,16 @@ function TrendsContent() {
                     key={row.id}
                     onClick={() => setSelectedEntity(row.original[entityKey])}
                     className={cn(
-                      "cursor-pointer",
+                      "cursor-pointer border-border/50 hover:bg-secondary/40",
                       selectedEntity === row.original[entityKey] &&
                         "bg-muted/60",
                     )}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="whitespace-nowrap">
+                      <TableCell
+                        key={cell.id}
+                        className="whitespace-nowrap px-4 py-3 text-xs text-foreground/90"
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -858,7 +898,7 @@ function TrendsContent() {
             </TableBody>
           </Table>
         </CardContent>
-        <CardFooter className="flex flex-wrap items-center justify-between gap-4 border-t py-4">
+        <CardFooter className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-secondary/30 py-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>Rows per page</span>
             <Select
@@ -918,8 +958,8 @@ function TrendsContent() {
           go straight to picking a file to upload */}
       {showUploadDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-border p-6">
               <h3 className="text-base font-semibold text-foreground">
                 Import Trends
               </h3>

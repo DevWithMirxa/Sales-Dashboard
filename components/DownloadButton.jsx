@@ -7,25 +7,12 @@ import {
   FileSpreadsheet,
   FileText,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-/**
- * Reusable "Download" dropdown that offers both Excel (CSV) and PDF export
- * options, mirroring the toggle behaviour used on the dashboard page.
- *
- * Props:
- *   onExcel  - handler that builds/saves the Excel (CSV) file
- *   onPdf    - handler that builds/saves the PDF file
- *   label     - main button label (default "Download")
- *   excelLabel- dropdown item label (default "Download Excel")
- *   pdfLabel  - dropdown item label (default "Download PDF")
- *   disabled  - disable the button
- *   variant   - "outline" (default) or "solid" (blue)
- *   buttonClassName, iconSize - styling escape hatches
- */
 export default function DownloadButton({
   onExcel,
   onPdf,
-  label = "Download",
+  label = "Export Data",
   excelLabel = "Download Excel",
   pdfLabel = "Download PDF",
   disabled = false,
@@ -48,8 +35,8 @@ export default function DownloadButton({
 
   const baseClasses =
     variant === "solid"
-      ? "flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs"
-      : "flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-xs";
+      ? "flex items-center gap-2 bg-accent text-accent-foreground font-medium px-3.5 py-2 rounded-lg hover:bg-accent/90 transition-all shadow-xs text-xs"
+      : "flex items-center gap-2 border border-border/70 bg-secondary/80 text-foreground px-3.5 py-2 rounded-lg hover:bg-secondary hover:border-accent/40 transition-all text-xs font-medium shadow-xs";
 
   const closeMenu = (handler) => {
     setOpen(false);
@@ -62,34 +49,32 @@ export default function DownloadButton({
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
-        className={`${baseClasses} ${buttonClassName} disabled:opacity-60`}
+        className={cn(baseClasses, disabled && "opacity-50 cursor-not-allowed", buttonClassName)}
       >
         <Download className={iconSize} />
-        {label}
+        <span>{label}</span>
         <ChevronDown
-          className={`${iconSize} transition-transform ${
-            open ? "rotate-180" : ""
-          }`}
+          className={cn("w-3.5 h-3.5 transition-transform duration-200", open && "rotate-180")}
         />
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-48 bg-popover border border-border rounded-xl shadow-xl z-30 overflow-hidden backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150 p-1">
           <button
             type="button"
             onClick={() => closeMenu(onExcel)}
-            className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+            className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary rounded-lg transition-colors"
           >
-            <FileSpreadsheet className="w-4 h-4 text-green-600" />
-            {excelLabel}
+            <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+            <span>{excelLabel}</span>
           </button>
           <button
             type="button"
             onClick={() => closeMenu(onPdf)}
-            className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 border-t border-gray-100"
+            className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary rounded-lg transition-colors border-t border-border/40 mt-0.5"
           >
-            <FileText className="w-4 h-4 text-red-600" />
-            {pdfLabel}
+            <FileText className="w-4 h-4 text-rose-500" />
+            <span>{pdfLabel}</span>
           </button>
         </div>
       )}

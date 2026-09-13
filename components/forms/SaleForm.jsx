@@ -188,13 +188,16 @@ export default function SaleForm({ onClose, initialData, onSuccess }) {
         </DialogHeader>
 
         {loadingOptions ? (
-          <div className="flex items-center justify-center py-12 text-sm text-gray-500">
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
             <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Loading options...
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-6 **:data-[slot='input']:border-accent **:data-[slot='textarea']:border-accent **:data-[slot='select-trigger']:border-accent **:data-[slot='button']:bg-black **:data-[slot='button']:text-accent"
+          >
             {formError && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div className="rounded-md border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-soft-foreground">
                 {formError}
               </div>
             )}
@@ -202,7 +205,7 @@ export default function SaleForm({ onClose, initialData, onSuccess }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="salesman">
-                  Salesman<span className="text-red-500 ml-0.5">*</span>
+                  Salesman<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Select
                   value={formData.salesman || ""}
@@ -221,13 +224,13 @@ export default function SaleForm({ onClose, initialData, onSuccess }) {
                   </SelectContent>
                 </Select>
                 {errors.salesman && (
-                  <p className="text-xs text-red-600">{errors.salesman}</p>
+                  <p className="text-xs text-destructive">{errors.salesman}</p>
                 )}
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="product">
-                  Product<span className="text-red-500 ml-0.5">*</span>
+                  Product<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Select
                   value={formData.product || ""}
@@ -245,13 +248,13 @@ export default function SaleForm({ onClose, initialData, onSuccess }) {
                   </SelectContent>
                 </Select>
                 {errors.product && (
-                  <p className="text-xs text-red-600">{errors.product}</p>
+                  <p className="text-xs text-destructive">{errors.product}</p>
                 )}
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="customer">
-                  Customer<span className="text-red-500 ml-0.5">*</span>
+                  Customer<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Select
                   value={formData.customer || ""}
@@ -269,13 +272,13 @@ export default function SaleForm({ onClose, initialData, onSuccess }) {
                   </SelectContent>
                 </Select>
                 {errors.customer && (
-                  <p className="text-xs text-red-600">{errors.customer}</p>
+                  <p className="text-xs text-destructive">{errors.customer}</p>
                 )}
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="region">
-                  Region<span className="text-red-500 ml-0.5">*</span>
+                  Region<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Select
                   value={formData.region || ""}
@@ -293,7 +296,7 @@ export default function SaleForm({ onClose, initialData, onSuccess }) {
                   </SelectContent>
                 </Select>
                 {errors.region && (
-                  <p className="text-xs text-red-600">{errors.region}</p>
+                  <p className="text-xs text-destructive">{errors.region}</p>
                 )}
               </div>
             </div>

@@ -14,6 +14,8 @@ import {
   Bar,
   CartesianGrid,
   Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -21,6 +23,7 @@ import {
 } from "recharts";
 import {
   BarChart3,
+  ChevronRight,
   Download,
   GitCompare,
   MapPin,
@@ -54,6 +57,11 @@ import {
 import { ChevronDown } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  KPISkeleton,
+  ChartSkeleton,
+  TableSkeleton,
+} from "@/components/ui/skeleton";
 
 // Compact a number into a short, human-friendly string, e.g.
 // 30,820,000 -> "30.82 M" and 21,700 -> "21.7 K".
@@ -238,49 +246,35 @@ const resolveRegion = (name, salesmen) =>
 // Shared paginated table shell for the list-style reports (salesperson,
 // product, region, recovery). Holds its own page/page-size state so the
 // parent doesn't re-mount it on every keystroke.
-function PaginatedListTable({ columns, rows, emptyLabel, pageSize = 10 }) {
+function PaginatedListPanel({ items, renderRow, emptyLabel, pageSize = 8 }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(pageSize);
 
-  const pageCount = Math.max(1, Math.ceil(rows.length / rowsPerPage));
+  const pageCount = Math.max(1, Math.ceil(items.length / rowsPerPage));
 
-  // Keep the current page valid when the filtered row count shrinks.
+  // Keep the current page valid when the filtered item count shrinks.
   useEffect(() => {
     if (pageIndex > pageCount - 1) setPageIndex(pageCount - 1);
   }, [pageCount, pageIndex]);
 
-  if (!rows.length) {
+  if (!items.length) {
     return (
-      <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
+      <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
         {emptyLabel}
       </div>
     );
   }
 
   const start = pageIndex * rowsPerPage;
-  const pageRows = rows.slice(start, start + rowsPerPage);
+  const pageItems = items.slice(start, start + rowsPerPage);
 
   return (
     <div>
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              {columns.map((col) => (
-                <th
-                  key={col}
-                  className="whitespace-nowrap px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-gray-500"
-                >
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">{pageRows}</tbody>
-        </table>
+      <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+        {pageItems.map(renderRow)}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <span>Rows per page</span>
           <select
@@ -289,17 +283,17 @@ function PaginatedListTable({ columns, rows, emptyLabel, pageSize = 10 }) {
               setRowsPerPage(Number(e.target.value));
               setPageIndex(0);
             }}
-            className="rounded-lg border border-gray-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-lg border border-border bg-input px-2 py-1 text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
           >
-            {[10, 25, 50, 100].map((n) => (
+            {[8, 10, 25, 50, 100].map((n) => (
               <option key={n} value={n}>
                 {n}
               </option>
             ))}
           </select>
           <span>
-            {rows.length
-              ? `${start + 1}-${Math.min(start + rowsPerPage, rows.length)} of ${rows.length}`
+            {items.length
+              ? `${start + 1}-${Math.min(start + rowsPerPage, items.length)} of ${items.length}`
               : "0 of 0"}
           </span>
         </div>
@@ -308,7 +302,7 @@ function PaginatedListTable({ columns, rows, emptyLabel, pageSize = 10 }) {
             type="button"
             onClick={() => setPageIndex(0)}
             disabled={pageIndex === 0}
-            className="rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 hover:bg-gray-50"
+            className="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-40 hover:bg-secondary/60"
           >
             First
           </button>
@@ -316,7 +310,7 @@ function PaginatedListTable({ columns, rows, emptyLabel, pageSize = 10 }) {
             type="button"
             onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
             disabled={pageIndex === 0}
-            className="rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 hover:bg-gray-50"
+            className="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-40 hover:bg-secondary/60"
           >
             Prev
           </button>
@@ -327,7 +321,7 @@ function PaginatedListTable({ columns, rows, emptyLabel, pageSize = 10 }) {
             type="button"
             onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
             disabled={pageIndex >= pageCount - 1}
-            className="rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 hover:bg-gray-50"
+            className="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-40 hover:bg-secondary/60"
           >
             Next
           </button>
@@ -335,7 +329,7 @@ function PaginatedListTable({ columns, rows, emptyLabel, pageSize = 10 }) {
             type="button"
             onClick={() => setPageIndex(pageCount - 1)}
             disabled={pageIndex >= pageCount - 1}
-            className="rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-40 hover:bg-gray-50"
+            className="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-40 hover:bg-secondary/60"
           >
             Last
           </button>
@@ -359,16 +353,46 @@ export default function ReportsPage() {
   const [selectedQuarter, setSelectedQuarter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Icon + row-label shown per report in the pill tabs and table headers.
-  // Keyed by report id so it stays in sync with reportSections below.
+  // Icon + row-label + short blurb shown per report in the quick report
+  // cards, table headers, and list rows. Keyed by report id so it stays in
+  // sync with reportSections below.
   const REPORT_META = {
-    summary: { icon: BarChart3, entity: "Metric" },
-    trend: { icon: TrendingUp, entity: "Period" },
-    salesperson: { icon: UserRound, entity: "Salesperson" },
-    product: { icon: Package, entity: "Product" },
-    region: { icon: MapPin, entity: "Region" },
-    recovery: { icon: Wallet, entity: "Salesperson" },
-    customer: { icon: GitCompare, entity: "Customer" },
+    trend: {
+      icon: TrendingUp,
+      entity: "Period",
+      description: "Sales vs. target across the period",
+      color: "accent",
+    },
+    salesperson: {
+      icon: UserRound,
+      entity: "Salesperson",
+      description: "Compare achievement across your team",
+      color: "chart-3",
+    },
+    product: {
+      icon: Package,
+      entity: "Product",
+      description: "Volume and value sold by product",
+      color: "chart-5",
+    },
+    region: {
+      icon: MapPin,
+      entity: "Region",
+      description: "Volume and value sold by region",
+      color: "chart-4",
+    },
+    recovery: {
+      icon: Wallet,
+      entity: "Salesperson",
+      description: "Outstanding balances by salesperson",
+      color: "chart-1",
+    },
+    customer: {
+      icon: GitCompare,
+      entity: "Customer",
+      description: "Sales and recovery by customer",
+      color: "accent",
+    },
   };
 
   const fetchReportsData = async () => {
@@ -675,6 +699,35 @@ export default function ReportsPage() {
     );
   }, [filteredTrendRows, salesmen]);
 
+  // "Sales by region" donut shown alongside the trend chart, in the spirit
+  // of the reference dashboard's Lead Sources breakdown. Buckets anything
+  // past the top 4 regions into "Other" so the legend stays short.
+  const DONUT_COLORS = [
+    "oklch(0.7 0.18 220)",
+    "oklch(0.7 0.18 145)",
+    "oklch(0.75 0.18 55)",
+    "oklch(0.65 0.2 25)",
+    "oklch(0.7 0.15 300)",
+  ];
+  const regionDonutData = useMemo(() => {
+    const totalSales = regionBreakdown.reduce((sum, r) => sum + r.saleValue, 0);
+    if (!totalSales) return [];
+
+    const top = regionBreakdown.slice(0, 4);
+    const rest = regionBreakdown.slice(4);
+    const restTotal = rest.reduce((sum, r) => sum + r.saleValue, 0);
+
+    const rows = [...top];
+    if (restTotal > 0) rows.push({ region: "Other", saleValue: restTotal });
+
+    return rows.map((r, index) => ({
+      name: r.region,
+      value: r.saleValue,
+      percent: (r.saleValue / totalSales) * 100,
+      color: DONUT_COLORS[index % DONUT_COLORS.length],
+    }));
+  }, [regionBreakdown]);
+
   // Recovery records already carry their own region string per invoice (set
   // when the invoice was created), so unlike the Trend-based reports above,
   // no fuzzy salesperson->region resolution is needed here.
@@ -813,7 +866,7 @@ export default function ReportsPage() {
         header: "Customer ",
         meta: { headerClassName: "text-center", cellClassName: "text-center" },
         cell: ({ getValue }) => (
-          <span className="font-medium text-gray-900">{getValue()}</span>
+          <span className="font-medium text-foreground">{getValue()}</span>
         ),
       },
       {
@@ -852,7 +905,7 @@ export default function ReportsPage() {
           const v = getValue() || 0;
           return (
             <span
-              className={`font-medium ${v > 0 ? "text-red-600" : "text-gray-900"}`}
+              className={`font-medium ${v > 0 ? "text-destructive" : "text-foreground"}`}
             >
               {formatCurrency(v)}
             </span>
@@ -926,6 +979,18 @@ export default function ReportsPage() {
       icon: Wallet,
       trend: recoveryRows.slice(0, 8).map((r) => ({ v: r.outstanding })),
     },
+    {
+      title: "Volume Sold",
+      value: `${formatNumber(
+        filteredTrendRows.reduce(
+          (sum, row) => sum + Number(row.saleVolumeKg || 0),
+          0,
+        ),
+      )} kg`,
+      detail: reportPeriodLabel,
+      icon: Package,
+      trend: sparklineSeries.map((p) => ({ v: p.volume })),
+    },
   ];
 
   // Each entry describes one downloadable report: a label for the dropdown,
@@ -934,36 +999,6 @@ export default function ReportsPage() {
   // API-derived data (trendRows/salesmen -> the memoized reports above).
   const reportSections = useMemo(
     () => [
-      {
-        id: "summary",
-        label: "Summary",
-        fileSlug: "summary",
-        render: (doc, ctx) => {
-          ctx.addSectionTitle(doc, ctx, `Summary - ${reportPeriodRLabel}`);
-          ctx.addTable(
-            doc,
-            ctx,
-            ["Metric", "Value"],
-            [
-              ["Report Period", reportPeriodLabel],
-              ["Sales Value", formatCurrency(totals.saleValue)],
-              ["Target Value", formatCurrency(totals.targetValue)],
-              ["Achievement", formatPct(totals.achievement)],
-              ["Recovery Outstanding", formatCurrency(totals.recoveryAmount)],
-              ["Recovery Recovered", formatCurrency(totals.recoveryRecovered)],
-              [
-                "Volume Sold",
-                `${formatNumber(
-                  filteredTrendRows.reduce(
-                    (sum, row) => sum + Number(row.saleVolumeKg || 0),
-                    0,
-                  ),
-                )} kg`,
-              ],
-            ],
-          );
-        },
-      },
       {
         id: "trend",
         label: "Sales trend by period",
@@ -1364,148 +1399,217 @@ export default function ReportsPage() {
     reportSections[0];
 
   const renderSelectedReport = () => {
-    // Small reusable table shell so the list-style reports (salesperson,
-    // product, region, recovery) share one consistent look. Delegates to the
-    // module-level component that owns the pagination state.
-    const ListTable = (props) => <PaginatedListTable {...props} />;
-
     const AchievementBadge = ({ value }) => (
       <span
         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
           value >= 100
-            ? "bg-green-50 text-green-700"
+            ? "bg-success/10 text-success"
             : value >= 75
-              ? "bg-amber-50 text-amber-700"
-              : "bg-red-50 text-red-700"
+              ? "bg-warning/10 text-warning"
+              : "bg-destructive/10 text-destructive"
         }`}
       >
         {formatPct(value)}
       </span>
     );
 
-    switch (selectedReport.id) {
-      case "summary":
-        return (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {summaryCards.map((card) => {
-              const CardIcon = card.icon;
-              return (
-                <div
-                  key={card.title}
-                  className="rounded-lg border border-gray-200 bg-gray-50 p-4"
-                >
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600">
-                      {card.title}
-                    </span>
-                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600">
-                      <CardIcon className="h-3.5 w-3.5" />
-                    </span>
-                  </div>
-                  <div className="text-lg font-semibold text-gray-900">
-                    {card.value}
-                  </div>
-                  <p className="mt-2 text-xs text-gray-500">{card.detail}</p>
-                </div>
-              );
-            })}
-            <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2 xl:col-span-4">
-              <p className="mb-1 text-sm font-medium text-gray-600">
-                Volume sold — {reportPeriodLabel}
-              </p>
-              <p className="text-lg font-semibold text-gray-900">
-                {formatNumber(
-                  filteredTrendRows.reduce(
-                    (sum, row) => sum + Number(row.saleVolumeKg || 0),
-                    0,
-                  ),
-                )}{" "}
-                kg
-              </p>
+    // Shared row shell for the list-style reports (salesperson, product,
+    // region, recovery), styled after the reference dashboard's "Recent
+    // Reports" rows: an icon tile on the left, name + meta underneath, and
+    // a primary value with a status badge on the right.
+    const ListRow = ({ icon: Icon, title, meta, value, valueLabel, badge }) => (
+      <div className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-secondary/40 transition-colors duration-150">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary">
+            <Icon className="h-4.5 w-4.5 text-muted-foreground" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">
+              {title}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              {meta.map((m, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <span>·</span>}
+                  <span>{m}</span>
+                </React.Fragment>
+              ))}
             </div>
           </div>
-        );
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="text-right">
+            <p className="text-sm font-semibold text-foreground">{value}</p>
+            {valueLabel && (
+              <p className="text-xs text-muted-foreground">{valueLabel}</p>
+            )}
+          </div>
+          {badge}
+        </div>
+      </div>
+    );
+
+    switch (selectedReport.id) {
       case "trend":
         return (
-          <div>
-            {chartPeriodSeries.length ? (
-              <div className="h-64 md:h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartPeriodSeries}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => formatCompact(v)}
-                    />
-                    <Tooltip
-                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                      formatter={(value) => formatCompact(value)}
-                    />
-                    <Bar dataKey="sales" name="Sales" radius={[4, 4, 0, 0]}>
-                      {chartPeriodSeries.map((entry) => (
-                        <Cell
-                          key={entry.key}
-                          fill={
-                            entry.key === activePeriod?.key
-                              ? "#2563eb"
-                              : "#bfdbfe"
-                          }
+          <div className="space-y-5">
+            {/* Chart row: sales-vs-target bars alongside a "sales by
+                region" donut, mirroring the reference dashboard's
+                Conversion Trend + Lead Sources pairing. */}
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div>
+                {chartPeriodSeries.length ? (
+                  <div className="h-64 md:h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartPeriodSeries}>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="oklch(0.22 0.005 260)"
+                          vertical={false}
                         />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v) => formatCompact(v)}
+                        />
+                        <Tooltip
+                          cursor={{ fill: "oklch(0.18 0.005 260)" }}
+                          contentStyle={{
+                            backgroundColor: "oklch(0.12 0.005 260)",
+                            border: "1px solid oklch(0.22 0.005 260)",
+                            borderRadius: 8,
+                            fontSize: 12,
+                          }}
+                          labelStyle={{
+                            color: "oklch(0.95 0 0)",
+                            fontWeight: 600,
+                          }}
+                          itemStyle={{ color: "oklch(0.85 0 0)" }}
+                          formatter={(value) => formatCompact(value)}
+                        />
+                        <Bar dataKey="sales" name="Sales" radius={[4, 4, 0, 0]}>
+                          {chartPeriodSeries.map((entry) => (
+                            <Cell
+                              key={entry.key}
+                              fill={
+                                entry.key === activePeriod?.key
+                                  ? "oklch(0.7 0.18 145)"
+                                  : "oklch(0.7 0.18 145 / 0.3)"
+                              }
+                            />
+                          ))}
+                        </Bar>
+                        <Bar
+                          dataKey="target"
+                          fill="oklch(0.65 0 0 / 0.3)"
+                          name="Target"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border text-center text-sm text-muted-foreground md:h-72">
+                    No activity found for the selected period.
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-border p-4">
+                <p className="mb-4 text-sm font-medium text-foreground">
+                  Sales by region — {reportPeriodLabel}
+                </p>
+                {regionDonutData.length ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="h-35 w-35">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={regionDonutData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={40}
+                            outerRadius={64}
+                            paddingAngle={2}
+                            dataKey="value"
+                          >
+                            {regionDonutData.map((entry, index) => (
+                              <Cell
+                                key={`region-slice-${index}`}
+                                fill={entry.color}
+                              />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="w-full space-y-2">
+                      {regionDonutData.map((entry) => (
+                        <div
+                          key={entry.name}
+                          className="flex items-center justify-between text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: entry.color }}
+                            />
+                            <span className="text-foreground">
+                              {entry.name}
+                            </span>
+                          </div>
+                          <span className="font-medium text-muted-foreground">
+                            {entry.percent.toFixed(1)}%
+                          </span>
+                        </div>
                       ))}
-                    </Bar>
-                    <Bar
-                      dataKey="target"
-                      fill="#e2e8f0"
-                      name="Target"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-40 items-center justify-center text-center text-xs text-muted-foreground">
+                    No region data for this period.
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
-                No activity found for the selected period.
-              </div>
-            )}
+            </div>
 
             {activePeriod && filteredTrendRows.length > 0 && (
-              <div className="mt-5 border-t border-gray-100 pt-5">
-                <h3 className="mb-3 text-base font-semibold text-gray-900">
+              <div className="border-t border-border pt-5">
+                <h3 className="mb-3 text-base font-semibold text-foreground">
                   Detailed breakdown — {reportPeriodLabel}
                 </h3>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg bg-blue-50 p-3">
-                    <p className="text-xs font-medium text-blue-700">
+                  <div className="rounded-lg bg-accent/10 p-3">
+                    <p className="text-xs font-medium text-accent">
                       Sales Value
                     </p>
-                    <p className="mt-1 text-base font-semibold text-blue-900">
+                    <p className="mt-1 text-base font-semibold text-foreground">
                       {formatCurrency(totals.saleValue)}
                     </p>
                   </div>
-                  <div className="rounded-lg bg-gray-50 p-3">
-                    <p className="text-xs font-medium text-gray-600">
+                  <div className="rounded-lg bg-secondary p-3">
+                    <p className="text-xs font-medium text-muted-foreground">
                       Target Value (Rs)
                     </p>
-                    <p className="mt-1 text-base font-semibold text-gray-900">
+                    <p className="mt-1 text-base font-semibold text-foreground">
                       {formatCurrency(totals.targetValue)}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       Achievement {formatPct(totals.achievement)}
                     </p>
                   </div>
-                  <div className="rounded-lg bg-gray-50 p-3">
-                    <p className="text-xs font-medium text-gray-600">
+                  <div className="rounded-lg bg-secondary p-3">
+                    <p className="text-xs font-medium text-muted-foreground">
                       Volume Sold
                     </p>
-                    <p className="mt-1 text-base font-semibold text-gray-900">
+                    <p className="mt-1 text-base font-semibold text-foreground">
                       {formatNumber(
                         filteredTrendRows.reduce(
                           (sum, row) => sum + Number(row.saleVolumeKg || 0),
@@ -1522,146 +1626,95 @@ export default function ReportsPage() {
         );
       case "salesperson":
         return (
-          <ListTable
-            columns={[
-              "Salesperson",
-              "Region",
-              "Target Value (Rs)",
-              "Sale Value (Rs)",
-              "Value Ach %",
-              "Volume Ach %",
-            ]}
+          <PaginatedListPanel
+            items={searchedSalespersonReport}
             emptyLabel="No salesperson comparison data is currently available."
-            rows={searchedSalespersonReport.map((item) => (
-              <tr key={item.salesperson} className="hover:bg-gray-50">
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                  {item.salesperson}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {item.region}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">
-                  {formatCurrency(item.targetValue)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                  {formatCurrency(item.saleValue)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <AchievementBadge value={item.valueAchievement} />
-                </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <AchievementBadge value={item.volumeAchievement} />
-                </td>
-              </tr>
-            ))}
+            renderRow={(item) => (
+              <ListRow
+                key={item.salesperson}
+                icon={UserRound}
+                title={item.salesperson}
+                meta={[
+                  item.region,
+                  `Target ${formatCurrency(item.targetValue)}`,
+                ]}
+                value={formatCurrency(item.saleValue)}
+                valueLabel="Sale value"
+                badge={<AchievementBadge value={item.valueAchievement} />}
+              />
+            )}
           />
         );
       case "product":
         return (
-          <ListTable
-            columns={[
-              "Product",
-              "Volume (kg)",
-              "Sale Value (Rs)",
-              "Target Value",
-            ]}
+          <PaginatedListPanel
+            items={searchedProductBreakdown}
             emptyLabel="No product data available yet."
-            rows={searchedProductBreakdown.map((item) => (
-              <tr key={item.product} className="hover:bg-gray-50">
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                  {item.product}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {formatNumber(item.volume)} kg
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                  {formatCurrency(item.saleValue)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {formatCurrency(item.targetValue)}
-                </td>
-              </tr>
-            ))}
+            renderRow={(item) => (
+              <ListRow
+                key={item.product}
+                icon={Package}
+                title={item.product}
+                meta={[
+                  `${formatNumber(item.volume)} kg`,
+                  `Target ${formatCurrency(item.targetValue)}`,
+                ]}
+                value={formatCurrency(item.saleValue)}
+                valueLabel="Sale value"
+              />
+            )}
           />
         );
       case "region":
         return (
-          <ListTable
-            columns={[
-              "Region",
-              "Volume (kg)",
-              "Sale Value (Rs)",
-              "Target Value (Rs)",
-            ]}
+          <PaginatedListPanel
+            items={searchedRegionBreakdown}
             emptyLabel="No region breakdown available."
-            rows={searchedRegionBreakdown.map((item) => (
-              <tr key={item.region} className="hover:bg-gray-50">
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                  {item.region}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {formatNumber(item.volume)} kg
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                  {formatCurrency(item.saleValue)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {formatCurrency(item.targetValue)}
-                </td>
-              </tr>
-            ))}
+            renderRow={(item) => (
+              <ListRow
+                key={item.region}
+                icon={MapPin}
+                title={item.region}
+                meta={[
+                  `${formatNumber(item.volume)} kg`,
+                  `Target ${formatCurrency(item.targetValue)}`,
+                ]}
+                value={formatCurrency(item.saleValue)}
+                valueLabel="Sale value"
+              />
+            )}
           />
         );
       case "recovery":
         return (
-          <ListTable
-            columns={[
-              "Salesperson",
-              "Region",
-              "Invoiced (Rs)",
-              "Recovered (Rs)",
-              "Outstanding (Rs)",
-              "Overdue",
-              "Max Days Overdue",
-            ]}
+          <PaginatedListPanel
+            items={searchedRecoveryRows}
             emptyLabel="No recovery history available."
-            rows={searchedRecoveryRows.map((item) => (
-              <tr key={item.salesperson} className="hover:bg-gray-50">
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                  {item.salesperson}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {item.region}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {formatCurrency(item.invoiced)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {formatCurrency(item.recovered)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                  {formatCurrency(item.outstanding)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm">
-                  {item.overdueCount > 0 ? (
-                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
-                      {item.overdueCount}
+            renderRow={(item) => (
+              <ListRow
+                key={item.salesperson}
+                icon={Wallet}
+                title={item.salesperson}
+                meta={[
+                  item.region,
+                  `Invoiced ${formatCurrency(item.invoiced)}`,
+                  `Recovered ${formatCurrency(item.recovered)}`,
+                ]}
+                value={formatCurrency(item.outstanding)}
+                valueLabel="Outstanding"
+                badge={
+                  item.overdueCount > 0 ? (
+                    <Badge className="bg-destructive/15 text-destructive hover:bg-destructive/20">
+                      {item.overdueCount} overdue
                     </Badge>
                   ) : (
-                    <span className="text-gray-400">0</span>
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm">
-                  {item.maxDaysOverdue > 0 ? (
-                    <span className="font-medium text-red-600">
-                      {item.maxDaysOverdue}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+                    <Badge variant="outline" className="text-muted-foreground">
+                      0 overdue
+                    </Badge>
+                  )
+                }
+              />
+            )}
           />
         );
       case "customer":
@@ -1687,20 +1740,29 @@ export default function ReportsPage() {
           {/* Page header */}
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">
+              <h1 className="text-lg font-semibold text-accent">
                 Reports &amp; Forecasting
               </h1>
             </div>
             <div className="flex max-w-full flex-wrap items-center gap-2">
               <Tabs value={view} onValueChange={setView}>
-                <TabsList>
-                  <TabsTrigger value="monthly" className="text-xs">
+                <TabsList className="bg-secondary border border-border p-1">
+                  <TabsTrigger
+                    value="monthly"
+                    className="text-xs data-[state=active]:bg-card data-[state=active]:text-accent"
+                  >
                     Monthly
                   </TabsTrigger>
-                  <TabsTrigger value="quarterly" className="text-xs">
+                  <TabsTrigger
+                    value="quarterly"
+                    className="text-xs data-[state=active]:bg-card data-[state=active]:text-accent"
+                  >
                     Quarterly
                   </TabsTrigger>
-                  <TabsTrigger value="yearly" className="text-xs">
+                  <TabsTrigger
+                    value="yearly"
+                    className="text-xs data-[state=active]:bg-card data-[state=active]:text-accent"
+                  >
                     Annual
                   </TabsTrigger>
                 </TabsList>
@@ -1755,11 +1817,11 @@ export default function ReportsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 text-xs"
+                className="gap-1.5 text-xs hover:text-accent"
                 asChild
               >
                 <Link href="/reports/forecasting">
-                  <TrendingUp className="h-3.5 w-3.5" />
+                  <TrendingUp className="h-3.5 w-3.5 hover:text-accent" />
                   Forecasting
                 </Link>
               </Button>
@@ -1768,7 +1830,7 @@ export default function ReportsPage() {
                   <Button
                     size="sm"
                     disabled={loading || !trendRows.length}
-                    className="gap-1.5 bg-blue-600 text-xs hover:bg-blue-700"
+                    className="gap-1.5 bg-accent text-xs hover:bg-accent/90"
                   >
                     <Download className="h-3.5 w-3.5" />
                     Download
@@ -1780,7 +1842,7 @@ export default function ReportsPage() {
                     onClick={generateExcel}
                     className="gap-2 text-xs font-semibold"
                   >
-                    <FileSpreadsheet className="h-3.5 w-3.5 text-green-600" />
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-success" />
                     Export all reports (Excel)
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -1791,7 +1853,7 @@ export default function ReportsPage() {
                     All reports (full PDF)
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs text-gray-500">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
                     Individual reports
                   </DropdownMenuLabel>
                   {reportSections.map((section) => (
@@ -1809,13 +1871,13 @@ export default function ReportsPage() {
           </div>
 
           {fetchError && !loading && (
-            <div className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between">
               <span>{fetchError}</span>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={fetchReportsData}
-                className="shrink-0 border-red-300 text-xs text-red-700 hover:bg-red-100"
+                className="shrink-0 border-destructive/40 text-xs text-destructive hover:bg-destructive/20"
               >
                 Retry
               </Button>
@@ -1823,43 +1885,114 @@ export default function ReportsPage() {
           )}
 
           {loading ? (
-            <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-              Loading report data...
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <KPISkeleton key={i} />
+                ))}
+              </div>
+              <ChartSkeleton height="h-[280px]" />
+              <TableSkeleton rows={4} />
             </div>
           ) : (
             <>
+              {/* Quick report cards: one per report section, styled after the
+                  reference dashboard's Sales Summary / Conversion Rates /
+                  Lead Sources / Forecast cards. Clicking a card selects that
+                  report below, and the active one is highlighted. */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {reportSections.map((section, index) => {
+                  const meta = REPORT_META[section.id] || {};
+                  const SectionIcon = meta.icon || BarChart3;
+                  const isActive = selectedReportId === section.id;
+                  // Static class strings (not interpolated) so Tailwind's
+                  // compiler can find and generate them at build time.
+                  const REPORT_CARD_COLORS = {
+                    "chart-1": "bg-chart-1/10 text-chart-1",
+                    "chart-3": "bg-chart-3/10 text-chart-3",
+                    "chart-4": "bg-chart-4/10 text-chart-4",
+                    "chart-5": "bg-chart-5/10 text-chart-5",
+                    accent: "bg-accent/10 text-accent",
+                  };
+                  const colorClass =
+                    REPORT_CARD_COLORS[meta.color] || REPORT_CARD_COLORS.accent;
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      onClick={() => setSelectedReportId(section.id)}
+                      className={`group rounded-xl border p-5 text-left transition-all duration-200 ${
+                        isActive
+                          ? "border-accent/60 bg-accent/5"
+                          : "border-border bg-card hover:border-accent/50"
+                      }`}
+                    >
+                      <div
+                        className={`mb-4 flex h-10 w-10 items-center justify-center rounded-lg ${colorClass}`}
+                      >
+                        <SectionIcon className="h-5 w-5" />
+                      </div>
+                      <h3 className="mb-1 text-sm font-semibold text-foreground">
+                        {section.label}
+                      </h3>
+                      <p className="mb-4 text-xs text-muted-foreground">
+                        {meta.description}
+                      </p>
+                      <span
+                        className={`flex items-center gap-1 text-xs font-medium transition-all duration-200 ${
+                          isActive
+                            ? "text-accent"
+                            : "text-muted-foreground group-hover:gap-2 group-hover:text-accent"
+                        }`}
+                      >
+                        {isActive ? "Viewing report" : "View Report"}
+                        <ChevronRight className="h-3 w-3" />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* KPI summary cards with a small trend sparkline, styled after
                   the reference dashboard's top stat cards. */}
-              <div className="grid gap-4 sm:grid-cols-3">
-                {summaryCards.map((card) => {
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {summaryCards.map((card, cardIndex) => {
                   const CardIcon = card.icon;
+                  const badgeColor = [
+                    "bg-chart-1/10 text-chart-1",
+                    "bg-accent/10 text-accent",
+                    "bg-chart-3/10 text-chart-3",
+                    "bg-chart-5/10 text-chart-5",
+                  ][cardIndex % 4];
                   return (
                     <div
                       key={card.title}
-                      className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                      className="group rounded-xl border border-border bg-card p-4 hover:border-accent/50 transition-colors duration-300"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                          <span
+                            className={`flex h-8 w-8 items-center justify-center rounded-lg ${badgeColor}`}
+                          >
                             <CardIcon className="h-4 w-4" />
                           </span>
-                          <span className="text-sm font-medium text-gray-600">
+                          <span className="text-sm font-medium text-muted-foreground">
                             {card.title}
                           </span>
                         </div>
                         <Badge
                           variant="outline"
-                          className="text-xs font-normal text-gray-500"
+                          className="text-xs font-normal text-muted-foreground"
                         >
                           {viewLabel(view)}
                         </Badge>
                       </div>
                       <div className="mt-3 flex items-end justify-between gap-2">
                         <div>
-                          <p className="text-lg font-semibold text-gray-900">
+                          <p className="text-lg font-semibold text-foreground">
                             {card.value}
                           </p>
-                          <p className="mt-1 text-xs text-gray-500">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {card.detail}
                           </p>
                         </div>
@@ -1877,12 +2010,12 @@ export default function ReportsPage() {
                                   >
                                     <stop
                                       offset="0%"
-                                      stopColor="#2563eb"
+                                      stopColor="oklch(0.7 0.18 145)"
                                       stopOpacity={0.35}
                                     />
                                     <stop
                                       offset="100%"
-                                      stopColor="#2563eb"
+                                      stopColor="oklch(0.7 0.18 145)"
                                       stopOpacity={0}
                                     />
                                   </linearGradient>
@@ -1890,7 +2023,7 @@ export default function ReportsPage() {
                                 <Area
                                   type="monotone"
                                   dataKey="v"
-                                  stroke="#2563eb"
+                                  stroke="oklch(0.7 0.18 145)"
                                   strokeWidth={1.5}
                                   fill={`url(#spark-${card.title})`}
                                 />
@@ -1904,31 +2037,19 @@ export default function ReportsPage() {
                 })}
               </div>
 
-              {/* Report panel: pill tabs to switch reports, a search box for
-                  the list-style reports, and the selected report's content. */}
-              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-wrap gap-1.5">
-                    {reportSections.map((section) => {
-                      const SectionIcon =
-                        REPORT_META[section.id]?.icon || BarChart3;
-                      const isActive = selectedReportId === section.id;
-                      return (
-                        <button
-                          key={section.id}
-                          type="button"
-                          onClick={() => setSelectedReportId(section.id)}
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                            isActive
-                              ? "bg-blue-600 text-white shadow-sm"
-                              : "bg-gray-50 text-gray-600 hover:bg-blue-50 hover:text-blue-700"
-                          }`}
-                        >
-                          <SectionIcon className="h-3.5 w-3.5" />
-                          {section.label}
-                        </button>
-                      );
-                    })}
+              {/* Report detail panel: header shows which quick-card is
+                  active, a search box for the list-style reports, and the
+                  selected report's chart/list content — styled after the
+                  reference dashboard's "Recent Reports" panel. */}
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">
+                      {selectedReport.label}
+                    </h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {REPORT_META[selectedReportId]?.description}
+                    </p>
                   </div>
 
                   {[
@@ -1940,7 +2061,7 @@ export default function ReportsPage() {
                   ].includes(selectedReportId) && (
                     <div className="flex items-center gap-2">
                       <div className="relative w-full sm:w-56">
-                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                         <Input
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
@@ -1971,10 +2092,7 @@ export default function ReportsPage() {
                   )}
                 </div>
 
-                <div className="mb-3 mt-4 flex items-center justify-between gap-2">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    {selectedReport.label}
-                  </h2>
+                <div className="mb-3 mt-4 flex items-center justify-end">
                   <Badge variant="outline" className="text-xs font-normal">
                     {reportPeriodLabel}
                   </Badge>

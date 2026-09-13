@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { ChartSkeleton } from "@/components/ui/skeleton";
 // Ribbon/flow comparison chart - shows how each salesperson's or product's
 // share of team revenue shifts from one period to the next. Generic despite
 // the filename (id/name/value in, ribbons out), reused here for both types.
@@ -156,23 +157,25 @@ function PerformanceFlow() {
     searchParams.get("year") || "",
   );
 
+  const fetchTrends = async () => {
+    try {
+      setLoading(true);
+      setFetchError("");
+      const res = await api.get("/trends", { params: { limit: 50000 } });
+      setTrendRows(res.data.rows || []);
+    } catch (error) {
+      console.error("Error loading trend data:", error);
+      setFetchError(
+        "Unable to load trend data. Check your network connection or API server.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchTrends = async () => {
-      try {
-        setLoading(true);
-        setFetchError("");
-        const res = await api.get("/trends", { params: { limit: 50000 } });
-        setTrendRows(res.data.rows || []);
-      } catch (error) {
-        console.error("Error loading trend data:", error);
-        setFetchError(
-          "Unable to load trend data. Check your network connection or API server.",
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchTrends();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const years = useMemo(() => {
@@ -221,7 +224,7 @@ function PerformanceFlow() {
             <Button
               variant="ghost"
               size="sm"
-              className="mb-2 -ml-2 gap-1.5 text-xs text-gray-500"
+              className="mb-2 -ml-2 gap-1.5 text-xs text-muted-foreground"
               asChild
             >
               <Link href="/reports">
@@ -229,10 +232,10 @@ function PerformanceFlow() {
                 Back to Reports
               </Link>
             </Button>
-            <h1 className="text-lg font-semibold text-gray-900">
+            <h1 className="text-lg font-semibold text-foreground">
               Performance Flow
             </h1>
-            <p className="mt-1 text-sm text-gray-600">
+            <p className="mt-1 text-sm text-muted-foreground">
               How each{" "}
               {reportType === "product" ? "product's" : "salesperson's"} share
               of total sale value shifts from one {viewUnit(view)} to the next.
@@ -241,26 +244,41 @@ function PerformanceFlow() {
 
           <div className="flex max-w-full flex-wrap items-center gap-2">
             <Tabs value={reportType} onValueChange={setReportType}>
-              <TabsList>
-                <TabsTrigger value="salesperson" className="gap-1.5 text-xs">
+              <TabsList className="bg-secondary border border-border p-1">
+                <TabsTrigger
+                  value="salesperson"
+                  className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:text-foreground"
+                >
                   <UserRound className="h-3.5 w-3.5" />
                   Salesperson
                 </TabsTrigger>
-                <TabsTrigger value="product" className="gap-1.5 text-xs">
+                <TabsTrigger
+                  value="product"
+                  className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:text-foreground"
+                >
                   <Package className="h-3.5 w-3.5" />
                   Product
                 </TabsTrigger>
               </TabsList>
             </Tabs>
             <Tabs value={view} onValueChange={setView}>
-              <TabsList>
-                <TabsTrigger value="monthly" className="text-xs">
+              <TabsList className="bg-secondary border border-border p-1">
+                <TabsTrigger
+                  value="monthly"
+                  className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground"
+                >
                   Monthly
                 </TabsTrigger>
-                <TabsTrigger value="quarterly" className="text-xs">
+                <TabsTrigger
+                  value="quarterly"
+                  className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground"
+                >
                   Quarterly
                 </TabsTrigger>
-                <TabsTrigger value="yearly" className="text-xs">
+                <TabsTrigger
+                  value="yearly"
+                  className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground"
+                >
                   Annual
                 </TabsTrigger>
               </TabsList>
@@ -283,26 +301,36 @@ function PerformanceFlow() {
         </div>
 
         {fetchError && !loading && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {fetchError}
+          <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between">
+            <span>{fetchError}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchTrends}
+              className="shrink-0 border-destructive/40 text-xs text-destructive hover:bg-destructive/20"
+            >
+              Retry
+            </Button>
           </div>
         )}
 
         {loading ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-            Loading performance data...
-          </div>
+          <ChartSkeleton height="h-[400px]" />
         ) : (
-          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-gray-900">
-                {reportType === "product" ? "Product" : "Salesperson"}{" "}
-                comparison — {viewLabel(view)}
-                {view !== "yearly" && selectedYear ? ` · ${selectedYear}` : ""}
-              </h2>
+          <div className="rounded-xl border border-border bg-card p-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">
+                  {reportType === "product" ? "Product" : "Salesperson"}{" "}
+                  comparison — {viewLabel(view)}
+                  {view !== "yearly" && selectedYear
+                    ? ` · ${selectedYear}`
+                    : ""}
+                </h2>
+              </div>
               <Badge
                 variant="outline"
-                className="text-xs font-normal text-gray-500"
+                className="text-xs font-normal text-muted-foreground"
               >
                 Top {FLOW_CHART_TOP_N} by sale value
               </Badge>
@@ -317,7 +345,7 @@ function PerformanceFlow() {
                 colW={200}
               />
             ) : (
-              <div className="py-16 text-center text-sm text-gray-500">
+              <div className="py-16 text-center text-sm text-muted-foreground">
                 Not enough periods with data to draw a comparison graph yet. Try
                 Quarterly or Annual view, or a year with more history.
               </div>

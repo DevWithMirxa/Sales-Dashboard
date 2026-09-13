@@ -15,15 +15,41 @@ import {
   AlertCircle,
   X,
   FileDown,
+  Filter,
+  RotateCcw,
+  Search,
+  ChevronDown,
+  ShoppingCart,
+  Users,
+  DollarSign,
 } from "lucide-react";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
 import ConfirmDelete from "@/components/ConfirmDelete";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
-// Compact a number into a short, human-friendly string using a single "M"
-// (millions) unit, e.g. 30,820,000 -> "30.82 M" and 21,700 -> "0.02 M".
+function StatCard({ label, value, icon: Icon, colorClass }) {
+  return (
+    <Card className="border-border bg-card transition-all duration-300 hover:border-muted-foreground/30">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">{label}</p>
+            <p className={cn("mt-1 text-2xl font-semibold", colorClass)}>
+              {value}
+            </p>
+          </div>
+          <Icon className={cn("h-8 w-8 opacity-50", colorClass)} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 const formatCompact = (value) => {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return "0 M";
@@ -36,15 +62,18 @@ function Sales() {
   const [showForm, setShowForm] = useState(false);
   const [editingSale, setEditingSale] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState(null); // { type: 'success' | 'error', text }
+  const [uploadMessage, setUploadMessage] = useState(null);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Salesman + period (month / day) filters applied client-side to the table.
   const [filterSalesman, setFilterSalesman] = useState("all");
-  const [filterMonth, setFilterMonth] = useState("all"); // "YYYY-MM"
-  const [filterDay, setFilterDay] = useState("all"); // day of month (1-31)
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterDay, setFilterDay] = useState("all");
+  const [filterRegion, setFilterRegion] = useState("all");
+  const [filterProduct, setFilterProduct] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   const fetchSales = async () => {
     try {
@@ -97,30 +126,76 @@ function Sales() {
     return Array.from(set).sort((a, b) => a - b);
   }, [sales]);
 
+  const regions = useMemo(
+    () =>
+      [
+        ...new Set((sales || []).map((sale) => sale.region).filter(Boolean)),
+      ].sort(),
+    [sales],
+  );
+
+  const products = useMemo(
+    () =>
+      [
+        ...new Set((sales || []).map((sale) => sale.product).filter(Boolean)),
+      ].sort(),
+    [sales],
+  );
+
   const filteredSales = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
     return (sales || []).filter((s) => {
-      if (filterSalesman !== "all" && s.salesman !== filterSalesman) {
+      // More filters
+      if (filterSalesman !== "all" && s.salesman !== filterSalesman)
         return false;
-      }
+      if (filterRegion !== "all" && s.region !== filterRegion) return false;
+      if (filterProduct !== "all" && s.product !== filterProduct) return false;
       const d = s.saleDate ? new Date(s.saleDate) : null;
       if (d && !isNaN(d)) {
-        const monthKey = `${d.getFullYear()}-${String(
-          d.getMonth() + 1,
-        ).padStart(2, "0")}`;
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
         if (filterMonth !== "all" && monthKey !== filterMonth) return false;
-        if (filterDay !== "all" && d.getDate() !== Number(filterDay)) {
+        if (filterDay !== "all" && d.getDate() !== Number(filterDay))
           return false;
-        }
+      }
+      // Search query: match salesman, product, customer, region
+      if (q) {
+        const haystack = [
+          s.salesman || "",
+          s.product || "",
+          s.customer || "",
+          s.region || "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
       }
       return true;
     });
-  }, [sales, filterSalesman, filterMonth, filterDay]);
+  }, [
+    sales,
+    filterSalesman,
+    filterMonth,
+    filterDay,
+    filterRegion,
+    filterProduct,
+    searchQuery,
+  ]);
 
   const clearFilters = () => {
     setFilterSalesman("all");
     setFilterMonth("all");
     setFilterDay("all");
+    setFilterRegion("all");
+    setFilterProduct("all");
+    setSearchQuery("");
   };
+
+  const hasActiveMoreFilters =
+    filterSalesman !== "all" ||
+    filterMonth !== "all" ||
+    filterDay !== "all" ||
+    filterRegion !== "all" ||
+    filterProduct !== "all";
 
   const handleDelete = async (id) => {
     try {
@@ -128,7 +203,6 @@ function Sales() {
       fetchSales();
     } catch (error) {
       console.error("Error deleting sale:", error);
-      alert("Failed to delete sale");
     }
   };
 
@@ -173,13 +247,8 @@ function Sales() {
     setEditingSale(null);
   };
 
-  // "Browse Excel File" opens the dialog instead of the file picker directly,
-  // so the user sees the Download Format File option first.
   const handleBrowseClick = () => setShowUploadDialog(true);
 
-  // "Upload Excel File" inside the dialog closes it, then opens the actual
-  // OS file picker. The hidden <input type="file"> below stays mounted
-  // outside the dialog, so this still works after the dialog unmounts.
   const handleChooseUpload = () => {
     setShowUploadDialog(false);
     fileInputRef.current?.click();
@@ -201,7 +270,6 @@ function Sales() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Error downloading template:", err);
-      alert("Failed to download the template file.");
     } finally {
       setDownloadingTemplate(false);
     }
@@ -209,7 +277,7 @@ function Sales() {
 
   const handleFileSelected = async (e) => {
     const file = e.target.files?.[0];
-    e.target.value = ""; // reset so selecting the same file again still fires onChange
+    e.target.value = "";
     if (!file) return;
 
     setShowUploadDialog(false);
@@ -226,7 +294,7 @@ function Sales() {
       const { inserted = 0, skipped = 0, totalRows = 0 } = res.data || {};
       setUploadMessage({
         type: "success",
-        text: `Imported ${inserted} of ${totalRows} rows${
+        text: `Successfully imported ${inserted} of ${totalRows} rows${
           skipped ? ` (${skipped} skipped)` : ""
         }.`,
       });
@@ -236,12 +304,28 @@ function Sales() {
         type: "error",
         text:
           err.response?.data?.message ||
-          "Upload failed. Please check the file format and try again.",
+          "Upload failed. Please verify file formatting and try again.",
       });
     } finally {
       setUploading(false);
     }
   };
+
+  // Summary stats derived from the full (unfiltered) dataset.
+  const stats = useMemo(() => {
+    const totalSales = sales.length;
+    const completedCount = sales.filter((s) => s.status === "completed").length;
+    const salespeopleCount = new Set(
+      sales.map((s) => s.salesman).filter(Boolean),
+    ).size;
+    const amounts = sales
+      .map((s) => Number(s.totalAmount))
+      .filter((n) => Number.isFinite(n));
+    const avgDealSize = amounts.length
+      ? amounts.reduce((a, b) => a + b, 0) / amounts.length
+      : 0;
+    return { totalSales, completedCount, salespeopleCount, avgDealSize };
+  }, [sales]);
 
   const columns = useMemo(
     () => [
@@ -250,91 +334,75 @@ function Sales() {
         header: "Date",
         cell: ({ getValue }) => {
           const v = getValue();
-          return v ? new Date(v).toLocaleDateString() : "-";
-        },
-        meta: {
-          headerClassName: "w-[13%]",
-          cellClassName: "w-[13%]",
+          return (
+            <span className="font-mono text-muted-foreground">
+              {v ? new Date(v).toLocaleDateString() : "-"}
+            </span>
+          );
         },
       },
       {
         accessorKey: "salesman",
-        header: "Salesman",
-        meta: {
-          headerClassName: "w-[14%]",
-          cellClassName: "w-[14%] text-gray-900 font-medium",
-        },
+        header: "Salesperson",
+        cell: ({ getValue }) => (
+          <span className="font-semibold text-foreground">{getValue()}</span>
+        ),
       },
       {
         accessorKey: "product",
         header: "Product",
-        meta: {
-          headerClassName: "w-[14%]",
-          cellClassName: "w-[14%]",
-        },
       },
       {
         accessorKey: "customer",
         header: "Customer",
-        meta: {
-          headerClassName: "w-[15%]",
-          cellClassName: "w-[15%]",
-        },
       },
       {
         accessorKey: "region",
         header: "Region",
-        meta: {
-          headerClassName: "w-[12%]",
-          cellClassName: "w-[12%]",
-        },
       },
       {
         accessorKey: "quantity",
         header: "Quantity",
-        cell: ({ row }) =>
-          `${row.original.quantity || 0} ${row.original.unit || ""}`,
-        meta: {
-          headerClassName: "w-[10%]",
-          cellClassName: "w-[10%]",
-        },
+        cell: ({ row }) => (
+          <span className="font-mono">
+            {row.original.quantity || 0} {row.original.unit || ""}
+          </span>
+        ),
       },
       {
         accessorKey: "totalAmount",
         header: "Total Amount (Rs)",
-        cell: ({ getValue }) => formatCompact(getValue() || 0),
-        meta: {
-          headerClassName: "w-[15%] text-center",
-          cellClassName: "w-[15%] text-center font-semibold text-gray-900",
-        },
+        cell: ({ getValue }) => (
+          <span className="font-mono font-bold text-accent">
+            {formatCompact(getValue() || 0)}
+          </span>
+        ),
       },
       {
         id: "actions",
         header: "Actions",
         enableSorting: false,
-        meta: {
-          headerClassName: "w-[10%]",
-          cellClassName: "w-[10%]",
-        },
         cell: ({ row }) => (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => handleEdit(row.original)}
-              className="text-blue-600 hover:text-blue-900"
-              title="Edit"
+              className="p-1.5 rounded-lg border border-border/60 bg-secondary/80 text-muted-foreground hover:text-accent hover:border-accent/40 transition-colors"
+              title="Edit Sale"
             >
-              <Edit2 className="w-4 h-4" />
+              <Edit2 className="w-3.5 h-3.5" />
             </button>
             <ConfirmDelete
-              title="Delete sale"
-              description="Are you sure you want to delete this sale? This action cannot be undone."
+              title="Delete sale record"
+              description="Are you sure you want to delete this sales transaction? This action cannot be undone."
               onConfirm={() => handleDelete(row.original._id)}
             >
               <button
-                className="text-red-600 hover:text-red-900"
-                title="Delete"
+                type="button"
+                className="p-1.5 rounded-lg border border-border/60 bg-secondary/80 text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors"
+                title="Delete Sale"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </ConfirmDelete>
           </div>
@@ -347,12 +415,21 @@ function Sales() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-wrap justify-between items-center gap-4">
-          <h1 className="text-lg font-bold text-gray-900">Sales</h1>
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/60 border border-border/70 rounded-xl p-5 shadow-xs">
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-accent">
+              Sales Management
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Record, import, and track farm & feed mill sales
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <DownloadButton
               onExcel={handleExportExcel}
               onPdf={handleExportPDF}
+              label="Export"
             />
             <input
               ref={fileInputRef}
@@ -362,104 +439,216 @@ function Sales() {
               onChange={handleFileSelected}
             />
             <button
+              type="button"
               onClick={handleBrowseClick}
               disabled={uploading}
-              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60 text-xs"
+              className="flex items-center gap-2 border border-border/70 bg-secondary/80 text-foreground px-3.5 py-2 rounded-lg hover:bg-secondary hover:border-accent/40 transition-all text-xs font-medium shadow-xs disabled:opacity-60"
             >
               {uploading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin text-accent" />
               ) : (
-                <Upload className="w-5 h-5" />
+                <Upload className="w-4 h-4 text-accent" />
               )}
-              {uploading ? "Uploading..." : "Browse Excel File"}
+              <span>{uploading ? "Uploading..." : "Import Excel"}</span>
             </button>
             <button
+              type="button"
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs"
+              className="flex items-center gap-2 bg-accent text-accent-foreground font-semibold px-4 py-2 rounded-lg hover:bg-accent/90 transition-all shadow-xs text-xs"
             >
-              <Plus className="w-5 h-5" />
-              Add Sales
+              <Plus className="w-4 h-4" />
+              <span>Add New Sale</span>
             </button>
           </div>
         </div>
 
-        {/* Salesman + Period filters */}
-        <div className="flex flex-col sm:flex-row gap-4 flex-wrap items-end rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <div className="flex-1 min-w-32">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Salesman
-            </label>
-            <select
-              value={filterSalesman}
-              onChange={(e) => setFilterSalesman(e.target.value)}
-              className="w-full px-1 py-1 border text-sm border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Salesmen</option>
-              {salesmen.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex-1 min-w-32">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Month
-            </label>
-            <select
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Months</option>
-              {months.map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex-1 min-w-32">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Day
-            </label>
-            <select
-              value={filterDay}
-              onChange={(e) => setFilterDay(e.target.value)}
-              className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Days</option>
-              {days.map((d) => (
-                <option key={d} value={String(d)}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            onClick={clearFilters}
-            className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-medium transition-colors text-xs"
-          >
-            Clear
-          </button>
+        {/* Summary stats */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <StatCard
+            label="Total Sales"
+            value={stats.totalSales}
+            icon={ShoppingCart}
+            colorClass="text-foreground"
+          />
+          <StatCard
+            label="Completed Sales"
+            value={stats.completedCount}
+            icon={CheckCircle2}
+            colorClass="text-success"
+          />
+          <StatCard
+            label="Salespeople"
+            value={stats.salespeopleCount}
+            icon={Users}
+            colorClass="text-chart-1"
+          />
+          <StatCard
+            label="Avg Deal Size"
+            value={`Rs ${formatCompact(stats.avgDealSize)}`}
+            icon={DollarSign}
+            colorClass="text-chart-3"
+          />
         </div>
 
-        {/* Upload result banner */}
+        {/* v0-style Inline Filter Bar */}
+        <div className="bg-card/60 border border-border/60 rounded-xl shadow-xs overflow-hidden">
+          {/* Main filter row */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 px-4 py-3">
+            {/* Search input */}
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                id="sales-search"
+                type="text"
+                placeholder="Search deals..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs bg-secondary/60 border border-border/60 rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+              />
+            </div>
+
+            {/* More filters button */}
+            <button
+              id="sales-more-filters-btn"
+              type="button"
+              onClick={() => setShowMoreFilters((v) => !v)}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg border text-xs font-semibold transition-all duration-150 shrink-0 ${
+                showMoreFilters || hasActiveMoreFilters
+                  ? "border-accent text-accent bg-accent/10"
+                  : "border-border/60 text-muted-foreground hover:text-foreground hover:border-accent/40 bg-secondary/60"
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              More filters
+              {hasActiveMoreFilters && (
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+              )}
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                  showMoreFilters ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Expandable more-filters panel */}
+          {showMoreFilters && (
+            <div className="border-t border-border/50 bg-secondary/20 px-4 py-4 flex flex-col sm:flex-row gap-3 flex-wrap items-end animate-in slide-in-from-top-2 duration-200">
+              <div className="flex-1 min-w-40">
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  Salesperson
+                </label>
+                <select
+                  value={filterSalesman}
+                  onChange={(e) => setFilterSalesman(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+                >
+                  <option value="all">All Salespeople</option>
+                  {salesmen.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex-1 min-w-40">
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  Month
+                </label>
+                <select
+                  value={filterMonth}
+                  onChange={(e) => setFilterMonth(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+                >
+                  <option value="all">All Months</option>
+                  {months.map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex-1 min-w-40">
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  Region
+                </label>
+                <select
+                  value={filterRegion}
+                  onChange={(e) => setFilterRegion(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+                >
+                  <option value="all">All Regions</option>
+                  {regions.map((region) => (
+                    <option key={region} value={region}>
+                      {region}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex-1 min-w-40">
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  Product
+                </label>
+                <select
+                  value={filterProduct}
+                  onChange={(e) => setFilterProduct(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+                >
+                  <option value="all">All Products</option>
+                  {products.map((product) => (
+                    <option key={product} value={product}>
+                      {product}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex-1 min-w-40">
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  Day of Month
+                </label>
+                <select
+                  value={filterDay}
+                  onChange={(e) => setFilterDay(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+                >
+                  <option value="all">All Days</option>
+                  {days.map((d) => (
+                    <option key={d} value={String(d)}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="flex items-center gap-1.5 px-3 py-2 bg-secondary/80 text-muted-foreground hover:text-foreground hover:bg-secondary border border-border/60 rounded-lg text-xs font-medium transition-all"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Upload Alert */}
         {uploadMessage && (
           <div
-            className={`flex items-start gap-3 rounded-lg border p-4 text-sm ${
+            className={`flex items-start gap-3 rounded-xl border p-4 text-xs font-medium ${
               uploadMessage.type === "success"
-                ? "bg-green-50 border-green-200 text-green-800"
-                : "bg-red-50 border-red-200 text-red-800"
+                ? "bg-success-soft border-success/30 text-success-soft-foreground"
+                : "bg-destructive-soft border-destructive/30 text-destructive-soft-foreground"
             }`}
           >
             {uploadMessage.type === "success" ? (
-              <CheckCircle2 className="w-5 h-5 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-success" />
             ) : (
-              <AlertCircle className="w-5 h-5 shrink-0" />
+              <AlertCircle className="w-4 h-4 shrink-0 text-destructive" />
             )}
             <span className="flex-1">{uploadMessage.text}</span>
             <button
@@ -471,61 +660,65 @@ function Sales() {
           </div>
         )}
 
-        <TanStackDataTable
-          columns={columns}
-          data={filteredSales}
-          loading={loading}
-          emptyMessage={
-            filteredSales.length === 0 && sales.length > 0
-              ? "No sales match the selected filters."
-              : "No sales recorded yet."
-          }
-          getRowId={(row) => row._id}
-          paginate
-        />
+        {/* Data Table */}
+        {loading ? (
+          <TableSkeleton rows={6} />
+        ) : (
+          <TanStackDataTable
+            columns={columns}
+            data={filteredSales}
+            emptyMessage={
+              filteredSales.length === 0 && sales.length > 0
+                ? "No sales match the selected filters."
+                : "No sales recorded yet."
+            }
+            getRowId={(row) => row._id}
+            paginate
+          />
+        )}
 
-        {/* Browse Excel dialog - download a correctly-formatted template, or
-            go straight to picking a file to upload */}
+        {/* Import Modal Dialog */}
         {showUploadDialog && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-              <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                <h3 className="text-base font-semibold text-gray-900">
-                  Import Sales
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-popover border border-border rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <h3 className="text-base font-bold text-foreground">
+                  Import Sales via Excel
                 </h3>
                 <button
                   onClick={() => setShowUploadDialog(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-muted-foreground hover:text-foreground"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-6 space-y-3">
-                <p className="text-sm text-gray-600">
-                  Not sure about the column headers? Download the format file
-                  first — it has the exact headers we expect, plus one example
-                  row.
-                </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Download our formatted Excel template to ensure headers match
+                system requirements before uploading your spreadsheet.
+              </p>
+              <div className="space-y-2.5 pt-2">
                 <button
                   onClick={handleDownloadTemplate}
                   disabled={downloadingTemplate}
-                  className="w-full flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60 text-xs"
+                  className="w-full flex items-center justify-center gap-2 border border-border/70 bg-secondary/80 text-foreground px-4 py-2.5 rounded-lg hover:bg-secondary transition-all text-xs font-semibold disabled:opacity-50"
                 >
                   {downloadingTemplate ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin text-accent" />
                   ) : (
-                    <FileDown className="w-5 h-5" />
+                    <FileDown className="w-4 h-4 text-accent" />
                   )}
-                  {downloadingTemplate
-                    ? "Downloading..."
-                    : "Download Format File"}
+                  <span>
+                    {downloadingTemplate
+                      ? "Downloading..."
+                      : "Download Excel Template"}
+                  </span>
                 </button>
                 <button
                   onClick={handleChooseUpload}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors text-xs"
+                  className="w-full flex items-center justify-center gap-2 bg-accent text-accent-foreground px-4 py-2.5 rounded-lg hover:bg-accent/90 transition-all text-xs font-semibold"
                 >
-                  <Upload className="w-5 h-5" />
-                  Upload Excel File
+                  <Upload className="w-4 h-4" />
+                  <span>Choose Excel File to Upload</span>
                 </button>
               </div>
             </div>

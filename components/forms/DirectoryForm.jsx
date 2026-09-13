@@ -191,9 +191,12 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6 **:data-[slot='input']:border-accent **:data-[slot='textarea']:border-accent **:data-[slot='select-trigger']:border-accent **:data-[slot='button']:bg-black **:data-[slot='button']:text-accent"
+        >
           {formError && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-md border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-soft-foreground">
               {formError}
             </div>
           )}
@@ -209,7 +212,9 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
               >
                 <Label htmlFor={f.name}>
                   {f.label}
-                  {f.required && <span className="text-red-500 ml-0.5">*</span>}
+                  {f.required && (
+                    <span className="text-destructive ml-0.5">*</span>
+                  )}
                 </Label>
 
                 {f.type === "textarea" ? (
@@ -229,7 +234,7 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
                 )}
 
                 {errors[f.name] && (
-                  <p className="text-xs text-red-600">{errors[f.name]}</p>
+                  <p className="text-xs text-destructive">{errors[f.name]}</p>
                 )}
               </div>
             ))}
@@ -245,7 +250,7 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
               {contacts.map((contact, index) => (
                 <div
                   key={contact._key}
-                  className="rounded-lg border border-gray-200 p-4 space-y-4"
+                  className="rounded-lg border border-border p-4 space-y-4"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-foreground">
@@ -266,7 +271,7 @@ export default function DirectoryForm({ initialData, onClose, onSuccess }) {
                         <button
                           type="button"
                           onClick={() => handleRemoveContact(contact._key)}
-                          className="text-sm font-medium text-red-600 hover:text-red-700"
+                          className="text-sm font-medium text-destructive hover:text-destructive"
                         >
                           Remove
                         </button>

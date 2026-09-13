@@ -186,7 +186,8 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
 
   const validate = () => {
     const nextErrors = {};
-    if (!formData.assignedTo) nextErrors.assignedTo = "Please select a salesman";
+    if (!formData.assignedTo)
+      nextErrors.assignedTo = "Please select a salesman";
     if (formData.products.length === 0)
       nextErrors.products = "Please add at least one product";
     setErrors(nextErrors);
@@ -247,14 +248,17 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
         </DialogHeader>
 
         {loadingOptions ? (
-          <div className="flex items-center justify-center py-12 text-sm text-gray-500">
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
             <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Loading salesmen
             &amp; products...
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-6 **:data-[slot='input']:border-accent **:data-[slot='textarea']:border-accent **:data-[slot='select-trigger']:border-accent **:data-[slot='button']:bg-black **:data-[slot='button']:text-accent"
+          >
             {formError && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div className="rounded-md border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-soft-foreground">
                 {formError}
               </div>
             )}
@@ -297,7 +301,7 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="assignedTo">
-                  Salesman<span className="text-red-500 ml-0.5">*</span>
+                  Salesman<span className="text-destructive ml-0.5">*</span>
                 </Label>
                 <Select
                   value={formData.assignedTo || ""}
@@ -316,7 +320,9 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
                   </SelectContent>
                 </Select>
                 {errors.assignedTo && (
-                  <p className="text-xs text-red-600">{errors.assignedTo}</p>
+                  <p className="text-xs text-destructive">
+                    {errors.assignedTo}
+                  </p>
                 )}
               </div>
 
@@ -334,11 +340,11 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
             </div>
 
             {selectedSalesman && (
-              <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm">
-                <p className="mb-2 font-semibold text-gray-900">
+              <div className="rounded-md border border-info/20 bg-info-soft p-4 text-sm">
+                <p className="mb-2 font-semibold text-foreground">
                   Selected Salesman
                 </p>
-                <div className="space-y-1 text-gray-600">
+                <div className="space-y-1 text-muted-foreground">
                   <p>
                     <strong>Name:</strong> {selectedSalesman.name}
                   </p>
@@ -361,7 +367,10 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
                   handleFieldChange({ target: { name: "status", value: v } })
                 }
               >
-                <SelectTrigger id="status" className="w-full sm:w-48 capitalize">
+                <SelectTrigger
+                  id="status"
+                  className="w-full sm:w-48 capitalize"
+                >
                   <SelectValue className="capitalize" />
                 </SelectTrigger>
                 <SelectContent>
@@ -374,8 +383,7 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
               </Select>
             </div>
 
-
-            <div className="space-y-4 rounded-md border border-gray-200 bg-gray-50 p-4">
+            <div className="space-y-4 rounded-md border border-border bg-muted/50 p-4">
               <Label className="text-sm font-medium">
                 Assign Products &amp; Targets
               </Label>
@@ -386,7 +394,9 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
                   <Select
                     value={productForm.productId || ""}
                     onValueChange={(v) =>
-                      handleProductChange({ target: { name: "productId", value: v } })
+                      handleProductChange({
+                        target: { name: "productId", value: v },
+                      })
                     }
                   >
                     <SelectTrigger id="productId">
@@ -431,7 +441,9 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
                   <Select
                     value={productForm.unit}
                     onValueChange={(v) =>
-                      handleProductChange({ target: { name: "unit", value: v } })
+                      handleProductChange({
+                        target: { name: "unit", value: v },
+                      })
                     }
                   >
                     <SelectTrigger id="unit">
@@ -458,7 +470,7 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
                     placeholder="Auto-calculated if blank"
                   />
                   {selectedProduct && (
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       List price: Rs.{" "}
                       {(selectedProduct.price || 0).toLocaleString()}
                     </p>
@@ -476,21 +488,21 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
               </Button>
 
               {formData.products.length > 0 && (
-                <div className="mt-4 border-t border-gray-200 pt-4">
-                  <h4 className="mb-3 font-semibold text-gray-900">
+                <div className="mt-4 border-t border-border pt-4">
+                  <h4 className="mb-3 font-semibold text-foreground">
                     Added Products
                   </h4>
                   <div className="max-h-64 space-y-2 overflow-y-auto">
                     {formData.products.map((product) => (
                       <div
                         key={product.productId}
-                        className="flex items-center justify-between rounded-md border border-gray-200 bg-white p-3"
+                        className="flex items-center justify-between rounded-md border border-border bg-card p-3"
                       >
                         <div>
-                          <p className="font-medium text-gray-900">
+                          <p className="font-medium text-foreground">
                             {product.name}
                           </p>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-muted-foreground">
                             Qty: {product.targetQuantity} {product.unit} |
                             Revenue: Rs.{" "}
                             {Number(product.targetRevenue).toLocaleString()}
@@ -500,7 +512,7 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-red-600 hover:text-red-700"
+                          className="text-destructive hover:text-destructive"
                           onClick={() => handleRemoveProduct(product.productId)}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -508,17 +520,17 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 rounded-md bg-blue-50 p-4">
+                  <div className="mt-4 rounded-md bg-primary/5 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           Total Products: {formData.products.length}
                         </p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           Total Quantity: {calculateTotalQuantity()}
                         </p>
                       </div>
-                      <p className="text-lg font-bold text-blue-600">
+                      <p className="text-lg font-bold text-primary">
                         Total Revenue: Rs.{" "}
                         {calculateTotalRevenue().toLocaleString()}
                       </p>
@@ -528,7 +540,7 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
               )}
 
               {errors.products && (
-                <p className="text-xs text-red-600">{errors.products}</p>
+                <p className="text-xs text-destructive">{errors.products}</p>
               )}
             </div>
 
@@ -542,7 +554,9 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
                 Cancel
               </Button>
               <Button type="submit" disabled={submitting}>
-                {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {submitting && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
                 {isEdit ? "Save Changes" : "Save Target"}
               </Button>
             </DialogFooter>

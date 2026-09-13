@@ -36,20 +36,12 @@ export default function TanStackDataTable({
   loadingMessage = "Loading...",
   getRowId,
   initialSorting = [],
-  // New, optional: pass both to lift sorting state to the parent (e.g. to
-  // sort a full dataset before slicing it for client-side pagination).
-  // Omit both (as every existing caller does) and behavior is unchanged -
-  // the table manages its own sorting state internally.
   sorting: controlledSorting,
   onSortingChange: controlledOnSortingChange,
   onRowClick,
   rowClassName,
   renderSubRow,
-  wrapperClassName = "bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden",
-  // Optional client-side pagination. When `paginate` is true the component
-  // sorts the FULL `data` array (so sorting stays correct across pages), then
-  // slices a single page for display and renders a footer with page controls.
-  // Existing callers that omit `paginate` get unchanged behavior.
+  wrapperClassName = "bg-card/90 backdrop-blur-sm rounded-xl border border-border/70 overflow-hidden shadow-xs",
   paginate = false,
   defaultPageSize = 10,
   pageSizeOptions = [10, 25, 50, 100],
@@ -63,14 +55,11 @@ export default function TanStackDataTable({
   const sorting = isControlled ? controlledSorting : internalSorting;
 
   const setSorting = (updater) => {
-    // Return to page 1 whenever the sort changes.
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
     if (isControlled) controlledOnSortingChange(updater);
     else setInternalSorting(updater);
   };
 
-  // Keep the current page valid when data shrinks (e.g. after a delete) or the
-  // page size changes.
   useEffect(() => {
     if (!paginate) return;
     const pageCount = Math.max(1, Math.ceil(data.length / pagination.pageSize));
@@ -89,8 +78,6 @@ export default function TanStackDataTable({
     },
     onSortingChange: setSorting,
     ...(paginate ? { onPaginationChange: setPagination } : {}),
-    // When sorting is controlled, the parent is responsible for sorting
-    // `data` before it gets here (usually because it's also paginating).
     manualSorting: isControlled,
     getRowId: (row, index) => {
       if (typeof getRowId === "function") {
@@ -99,7 +86,6 @@ export default function TanStackDataTable({
           return String(customId);
         }
       }
-
       return getStableRowId(row, index);
     },
     getCoreRowModel: getCoreRowModel(),
@@ -112,9 +98,9 @@ export default function TanStackDataTable({
   return (
     <div className={wrapperClassName}>
       <Table className="table-fixed w-full">
-        <TableHeader className="bg-gray-50 border-b border-gray-200">
+        <TableHeader className="bg-secondary/60 border-b border-border/70">
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
+            <TableRow key={headerGroup.id} className="border-b border-border/70">
               {headerGroup.headers.map((header) => {
                 const canSort = header.column.getCanSort();
                 const sorted = header.column.getIsSorted();
@@ -128,26 +114,26 @@ export default function TanStackDataTable({
                         : undefined
                     }
                     className={[
-                      "px-2 py-4 sm:px-4 md:px-6 text-center text-sm font-semibold text-gray-900 align-top",
-                      canSort ? "cursor-pointer select-none" : "",
+                      "px-4 py-3 text-left text-xs font-semibold text-foreground tracking-tight align-middle",
+                      canSort ? "cursor-pointer select-none hover:text-accent transition-colors" : "",
                       header.column.columnDef.meta?.headerClassName || "",
                     ]
                       .filter(Boolean)
                       .join(" ")}
                   >
                     {header.isPlaceholder ? null : (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         {flexRender(
                           header.column.columnDef.header,
                           header.getContext(),
                         )}
                         {canSort &&
                           (sorted === "asc" ? (
-                            <ArrowUp className="w-3 h-3 text-gray-700" />
+                            <ArrowUp className="w-3.5 h-3.5 text-accent" />
                           ) : sorted === "desc" ? (
-                            <ArrowDown className="w-3 h-3 text-gray-700" />
+                            <ArrowDown className="w-3.5 h-3.5 text-accent" />
                           ) : (
-                            <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                            <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground/60" />
                           ))}
                       </div>
                     )}
@@ -162,16 +148,19 @@ export default function TanStackDataTable({
             <TableRow>
               <TableCell
                 colSpan={visibleColumns}
-                className="px-4 py-4 text-center"
+                className="px-4 py-8 text-center text-xs text-muted-foreground"
               >
-                {loadingMessage}
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                  <span>{loadingMessage}</span>
+                </div>
               </TableCell>
             </TableRow>
           ) : table.getRowModel().rows.length === 0 ? (
             <TableRow>
               <TableCell
                 colSpan={visibleColumns}
-                className="px-4 py-4 text-center text-gray-500"
+                className="px-4 py-8 text-center text-xs text-muted-foreground"
               >
                 {emptyMessage}
               </TableCell>
@@ -203,7 +192,7 @@ export default function TanStackDataTable({
                       onRowClick ? () => onRowClick(row.original) : undefined
                     }
                     className={[
-                      "border-b border-gray-200 hover:bg-gray-50",
+                      "border-b border-border/50 hover:bg-secondary/40 transition-colors duration-150",
                       onRowClick ? "cursor-pointer" : "",
                       typeof rowClassName === "function"
                         ? rowClassName(row.original)
@@ -216,7 +205,7 @@ export default function TanStackDataTable({
                       <TableCell
                         key={cell.id}
                         className={[
-                          "px-1 py-1 sm:px-4 md:px-6 md:py-2 text-xs text-gray-600 align-top wrap-break-word",
+                          "px-4 py-3 text-xs text-foreground/90 align-middle wrap-break-word font-normal",
                           cell.column.columnDef.meta?.cellClassName || "",
                         ]
                           .filter(Boolean)
@@ -239,7 +228,7 @@ export default function TanStackDataTable({
         </TableBody>
       </Table>
 
-      {/* Pagination footer (only when enabled and there are rows to page) */}
+      {/* Pagination footer */}
       {paginate &&
         !loading &&
         table.getRowModel().rows.length > 0 &&
@@ -263,7 +252,7 @@ export default function TanStackDataTable({
           }
 
           return (
-            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 border-t border-gray-200 text-sm text-gray-600">
+            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 border-t border-border/70 bg-card/60 text-xs text-muted-foreground">
               <div className="flex items-center gap-2">
                 <span>Rows per page</span>
                 <select
@@ -274,7 +263,7 @@ export default function TanStackDataTable({
                       pageSize: Number(e.target.value),
                     })
                   }
-                  className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="border border-border/70 rounded-md px-2 py-1 bg-secondary text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
                 >
                   {pageSizeOptions.map((n) => (
                     <option key={n} value={n}>
@@ -291,9 +280,9 @@ export default function TanStackDataTable({
                 <button
                   onClick={() => setPagination((p) => ({ ...p, pageIndex: 0 }))}
                   disabled={pageIndex === 0}
-                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                  className="p-1.5 rounded-md border border-border/70 disabled:opacity-30 hover:bg-secondary transition-colors"
                 >
-                  <ChevronsLeft className="w-4 h-4" />
+                  <ChevronsLeft className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() =>
@@ -303,9 +292,9 @@ export default function TanStackDataTable({
                     }))
                   }
                   disabled={pageIndex === 0}
-                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                  className="p-1.5 rounded-md border border-border/70 disabled:opacity-30 hover:bg-secondary transition-colors"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
                 {pageNumbers.map((p) => (
                   <button
@@ -313,10 +302,10 @@ export default function TanStackDataTable({
                     onClick={() =>
                       setPagination((prev) => ({ ...prev, pageIndex: p - 1 }))
                     }
-                    className={`w-8 h-8 rounded-full text-sm font-medium ${
+                    className={`w-7 h-7 rounded-md text-xs font-semibold transition-colors ${
                       p === pageIndex + 1
-                        ? "bg-slate-800 text-white"
-                        : "border border-gray-300 hover:bg-gray-50"
+                        ? "bg-accent text-accent-foreground"
+                        : "border border-border/70 hover:bg-secondary text-foreground"
                     }`}
                   >
                     {p}
@@ -330,18 +319,18 @@ export default function TanStackDataTable({
                     }))
                   }
                   disabled={pageIndex === pageCount - 1}
-                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                  className="p-1.5 rounded-md border border-border/70 disabled:opacity-30 hover:bg-secondary transition-colors"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() =>
                     setPagination((p) => ({ ...p, pageIndex: pageCount - 1 }))
                   }
                   disabled={pageIndex === pageCount - 1}
-                  className="p-2 rounded-full border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                  className="p-1.5 rounded-md border border-border/70 disabled:opacity-30 hover:bg-secondary transition-colors"
                 >
-                  <ChevronsRight className="w-4 h-4" />
+                  <ChevronsRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>

@@ -1,10 +1,24 @@
-import React from 'react'
+import React from "react";
+import { cn } from "@/lib/utils";
 
-export default function TableCard({ title, children }) {
+export default function TableCard({ title, subtitle, action, children, className }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h2 className="text-base font-semibold text-gray-900 mb-6">{title}</h2>
-      {children}
+    <div
+      className={cn(
+        "bg-card/90 backdrop-blur-sm rounded-xl border border-border/70 p-5 shadow-xs hover:border-accent/30 transition-all duration-300 overflow-hidden",
+        className
+      )}
+    >
+      <div className="flex items-center justify-between mb-4 border-b border-border/40 pb-3">
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">{title}</h2>
+          {subtitle && (
+            <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+          )}
+        </div>
+        {action && <div>{action}</div>}
+      </div>
+      <div className="w-full">{children}</div>
     </div>
-  )
+  );
 }

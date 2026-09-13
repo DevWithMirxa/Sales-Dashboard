@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import RecoveryForm from "@/components/forms/RecoveryForm";
 import TanStackDataTable from "@/components/TanStackDataTable";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Plus,
   Trash2,
@@ -21,12 +22,17 @@ import {
   Wallet,
   MapPin,
   StickyNote,
+  Search,
+  SlidersHorizontal,
+  RotateCcw,
+  DollarSign,
 } from "lucide-react";
 import api from "@/lib/api";
 import { exportToCSV } from "@/lib/csvExport";
 import { exportToPDF } from "@/lib/pdfExport";
 import DownloadButton from "@/components/DownloadButton";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { TableRow, TableCell } from "@/components/ui/table";
 import {
   Dialog,
@@ -35,24 +41,43 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 const STATUS_STYLES = {
-  Paid: "bg-green-100 text-green-800 hover:bg-green-100",
-  Partial: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
-  Overdue: "bg-red-100 text-red-800 hover:bg-red-100",
-  Pending: "bg-gray-100 text-gray-600 hover:bg-gray-100",
+  Paid: "border-0 bg-green-500/15 text-green-400 hover:bg-green-500/15",
+  Partial: "border-0 bg-amber-500/15 text-amber-400 hover:bg-amber-500/15",
+  Overdue: "border-0 bg-red-500/15 text-red-400 hover:bg-red-500/15",
+  Pending: "border-0 bg-secondary text-muted-foreground hover:bg-secondary",
 };
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString() : "-");
+
+function StatCard({ label, value, icon: Icon, colorClass }) {
+  return (
+    <Card className="border-border bg-card transition-all duration-300 hover:border-muted-foreground/30">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">{label}</p>
+            <p className={cn("mt-1 text-2xl font-semibold", colorClass)}>
+              {value}
+            </p>
+          </div>
+          <Icon className={cn("h-8 w-8 opacity-50", colorClass)} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 // Small label+value block used inside the expanded row - same idea as the
 // Business Directory page's detail grid.
 const DetailItem = ({ icon: Icon, label, value }) => (
   <div className="flex items-start gap-2">
-    {Icon && <Icon className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />}
+    {Icon && <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
     <div className="min-w-0">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-sm text-gray-900 wrap-break-word">{value ?? "-"}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-sm text-foreground wrap-break-word">{value ?? "-"}</p>
     </div>
   </div>
 );
@@ -67,6 +92,11 @@ function Recovery() {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [selectedRegion, setSelectedRegion] = useState("All");
+  const [selectedSalesperson, setSelectedSalesperson] = useState("All");
+  const [showFilters, setShowFilters] = useState(false);
   const fileInputRef = useRef(null);
 
   const fetchRecords = async () => {
@@ -107,9 +137,17 @@ function Recovery() {
   };
 
   const renderRecoveryDetails = (record, colSpanCount) => (
-    <TableRow className="bg-gray-50 hover:bg-gray-50">
-      <TableCell colSpan={colSpanCount} className="px-5 py-4 whitespace-normal">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <TableRow className="bg-secondary/40 hover:bg-secondary/40">
+      <TableCell colSpan={colSpanCount} className="px-5 py-5 whitespace-normal">
+        <div className="mb-4 flex items-center justify-between border-b border-border/70 pb-3">
+          <p className="text-sm font-semibold text-foreground">
+            Recovery details
+          </p>
+          <span className="text-xs text-muted-foreground">
+            {record.invoiceNumber}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <DetailItem
             icon={CalendarDays}
             label="Invoice Date"
@@ -226,6 +264,55 @@ function Recovery() {
     }
   };
 
+  const regions = useMemo(
+    () =>
+      [
+        ...new Set(records.map((record) => record.region).filter(Boolean)),
+      ].sort(),
+    [records],
+  );
+  const salespeople = useMemo(
+    () =>
+      [
+        ...new Set(records.map((record) => record.salesperson).filter(Boolean)),
+      ].sort(),
+    [records],
+  );
+  const filteredRecords = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    return records.filter((record) => {
+      const matchesSearch =
+        !query ||
+        [
+          record.invoiceNumber,
+          record.customer,
+          record.salesperson,
+          record.region,
+        ].some((value) =>
+          String(value || "")
+            .toLowerCase()
+            .includes(query),
+        );
+      const matchesStatus =
+        statusFilter === "All" || record.status === statusFilter;
+      const matchesRegion =
+        selectedRegion === "All" || record.region === selectedRegion;
+      const matchesSalesperson =
+        selectedSalesperson === "All" ||
+        record.salesperson === selectedSalesperson;
+      return (
+        matchesSearch && matchesStatus && matchesRegion && matchesSalesperson
+      );
+    });
+  }, [records, searchTerm, selectedRegion, selectedSalesperson, statusFilter]);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("All");
+    setSelectedRegion("All");
+    setSelectedSalesperson("All");
+  };
+
   const recoveryColumns = [
     { label: "Invoice #", key: "invoiceNumber" },
     { label: "Salesperson", key: "salesperson" },
@@ -253,6 +340,15 @@ function Recovery() {
     });
   };
 
+  // Summary stats derived from the full (unfiltered) dataset.
+  const stats = useMemo(() => {
+    const totalRecords = records.length;
+    const paidCount = records.filter((r) => r.status === "Paid").length;
+    const overdueCount = records.filter((r) => r.status === "Overdue").length;
+    const totalBalance = records.reduce((sum, r) => sum + (r.balance || 0), 0);
+    return { totalRecords, paidCount, overdueCount, totalBalance };
+  }, [records]);
+
   const columns = useMemo(
     () => [
       {
@@ -261,7 +357,7 @@ function Recovery() {
         enableSorting: false,
         meta: {
           headerClassName: "w-[5%]",
-          cellClassName: "w-[5%] text-gray-400",
+          cellClassName: "w-[5%] text-muted-foreground",
         },
         cell: ({ row }) =>
           expandedId === row.original._id ? (
@@ -272,21 +368,27 @@ function Recovery() {
       },
       {
         accessorKey: "invoiceNumber",
-        header: "Invoice #",
+        header: "Invoice",
+        cell: ({ getValue }) => (
+          <span className="font-medium text-foreground">{getValue()}</span>
+        ),
         meta: {
           headerClassName: "w-[12%]",
-          cellClassName: "w-[12%] text-gray-900 font-medium",
+          cellClassName: "w-[12%]",
         },
-      },
-      {
-        accessorKey: "salesperson",
-        header: "Salesperson",
-        meta: { headerClassName: "w-[15%]", cellClassName: "w-[15%]" },
       },
       {
         accessorKey: "customer",
         header: "Customer",
-        meta: { headerClassName: "w-[18%]", cellClassName: "w-[18%]" },
+        cell: ({ row, getValue }) => (
+          <div>
+            <p className="font-medium text-foreground">{getValue()}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {row.original.region}
+            </p>
+          </div>
+        ),
+        meta: { headerClassName: "w-[20%]", cellClassName: "w-[20%]" },
       },
       {
         accessorKey: "balance",
@@ -294,7 +396,7 @@ function Recovery() {
         cell: ({ getValue }) => (getValue() || 0).toLocaleString(),
         meta: {
           headerClassName: "w-[13%]",
-          cellClassName: "w-[13%] font-semibold text-gray-900",
+          cellClassName: "w-[13%] font-semibold text-foreground",
         },
       },
       {
@@ -303,9 +405,9 @@ function Recovery() {
         cell: ({ getValue }) => {
           const days = getValue() || 0;
           return days > 0 ? (
-            <span className="font-medium text-red-600">{days}</span>
+            <span className="font-medium text-red-400">{days}</span>
           ) : (
-            <span className="text-gray-400">-</span>
+            <span className="text-muted-foreground">-</span>
           );
         },
         meta: { headerClassName: "w-[10%]", cellClassName: "w-[10%]" },
@@ -320,10 +422,24 @@ function Recovery() {
         meta: { headerClassName: "w-[12%]", cellClassName: "w-[12%]" },
       },
       {
+        accessorKey: "salesperson",
+        header: "Salesperson",
+        meta: { headerClassName: "w-[15%]", cellClassName: "w-[15%]" },
+      },
+      {
+        accessorKey: "dueDate",
+        header: "Due date",
+        cell: ({ getValue }) => formatDate(getValue()),
+        meta: {
+          headerClassName: "w-[12%]",
+          cellClassName: "w-[12%] whitespace-nowrap",
+        },
+      },
+      {
         id: "actions",
         header: "Actions",
         enableSorting: false,
-        meta: { headerClassName: "w-[15%]", cellClassName: "w-[15%]" },
+        meta: { headerClassName: "w-[8%]", cellClassName: "w-[8%]" },
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-1.5">
             <button
@@ -331,7 +447,7 @@ function Recovery() {
                 e.stopPropagation();
                 handleEdit(row.original);
               }}
-              className="text-blue-600 hover:text-blue-900"
+              className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
               title="Edit"
             >
               <Edit2 className="w-4 h-4" />
@@ -341,7 +457,7 @@ function Recovery() {
                 e.stopPropagation();
                 handleDelete(row.original._id);
               }}
-              className="text-red-600 hover:text-red-900"
+              className="rounded p-1 text-muted-foreground hover:bg-destructive-soft hover:text-destructive-soft-foreground"
               title="Delete"
             >
               <Trash2 className="w-4 h-4" />
@@ -357,7 +473,12 @@ function Recovery() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-wrap justify-between items-center gap-4">
-          <h1 className="text-xl font-bold text-gray-900">Recovery</h1>
+          <div>
+            <h1 className="text-xl font-bold text-accent">Recovery</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              View and manage all outstanding invoice recoveries in one place.
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <DownloadButton
               onExcel={handleExportExcel}
@@ -373,7 +494,7 @@ function Recovery() {
             <button
               onClick={() => setShowUploadDialog(true)}
               disabled={uploading}
-              className="flex items-center gap-2 border border-gray-300 text-gray-700 text-sm px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+              className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-accent disabled:opacity-60"
             >
               {uploading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -384,12 +505,40 @@ function Recovery() {
             </button>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white text-sm px-2 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90"
             >
               <Plus className="w-4 h-4" />
               Add Recovery
             </button>
           </div>
+        </div>
+
+        {/* Summary stats */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <StatCard
+            label="Total Invoices"
+            value={stats.totalRecords}
+            icon={Wallet}
+            colorClass="text-foreground"
+          />
+          <StatCard
+            label="Paid"
+            value={stats.paidCount}
+            icon={CheckCircle2}
+            colorClass="text-green-400"
+          />
+          <StatCard
+            label="Overdue"
+            value={stats.overdueCount}
+            icon={AlertCircle}
+            colorClass="text-red-400"
+          />
+          <StatCard
+            label="Outstanding Balance"
+            value={`Rs ${stats.totalBalance.toLocaleString()}`}
+            icon={DollarSign}
+            colorClass="text-amber-400"
+          />
         </div>
 
         {/* Upload result banner */}
@@ -457,20 +606,108 @@ function Recovery() {
           </DialogContent>
         </Dialog>
 
-        <TanStackDataTable
-          columns={columns}
-          data={records}
-          loading={loading}
-          emptyMessage="No recovery records found."
-          getRowId={(row) => row._id}
-          onRowClick={toggleExpanded}
-          rowClassName="cursor-pointer"
-          renderSubRow={(record, visibleColumns) =>
-            expandedId === record._id
-              ? renderRecoveryDetails(record, visibleColumns)
-              : null
-          }
-        />
+        <section className="space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search invoices..."
+                  className="h-10 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-accent sm:w-56"
+                />
+              </label>
+              {["All", "Paid", "Partial", "Overdue", "Pending"].map(
+                (status) => (
+                  <button
+                    key={status}
+                    onClick={() => setStatusFilter(status)}
+                    className={`rounded-md px-3 py-2 text-xs font-medium transition-colors ${statusFilter === status ? "bg-accent text-accent-foreground" : "bg-secondary text-muted-foreground hover:text-accent"}`}
+                  >
+                    {status}
+                  </button>
+                ),
+              )}
+            </div>
+            <button
+              onClick={() => setShowFilters((open) => !open)}
+              className={`flex items-center gap-2 self-start rounded-lg border px-3 py-2 text-xs font-medium transition-colors lg:self-auto ${showFilters ? "border-accent bg-secondary text-foreground" : "border-border bg-card text-muted-foreground hover:bg-secondary hover:text-accent"}`}
+            >
+              <SlidersHorizontal className="h-4 w-4 " /> More filters
+            </button>
+          </div>
+
+          {showFilters && (
+            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+              <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+                Region
+                <select
+                  value={selectedRegion}
+                  onChange={(event) => setSelectedRegion(event.target.value)}
+                  className="min-w-44 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                >
+                  <option value="All">All regions</option>
+                  {regions.map((region) => (
+                    <option key={region} value={region}>
+                      {region}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+                Salesperson
+                <select
+                  value={selectedSalesperson}
+                  onChange={(event) =>
+                    setSelectedSalesperson(event.target.value)
+                  }
+                  className="min-w-44 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                >
+                  <option value="All">All salespeople</option>
+                  {salespeople.map((person) => (
+                    <option key={person} value={person}>
+                      {person}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                onClick={clearFilters}
+                className="flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset
+              </button>
+            </div>
+          )}
+
+          {loading ? (
+            <TableSkeleton rows={8} />
+          ) : (
+            <TanStackDataTable
+              columns={columns}
+              data={filteredRecords}
+              emptyMessage="No recovery records match these filters."
+              getRowId={(row) => row._id}
+              onRowClick={toggleExpanded}
+              rowClassName="cursor-pointer"
+              paginate
+              defaultPageSize={8}
+              renderSubRow={(record, visibleColumns) =>
+                expandedId === record._id
+                  ? renderRecoveryDetails(record, visibleColumns)
+                  : null
+              }
+            />
+          )}
+          {!loading && (
+            <p className="px-1 text-xs text-muted-foreground">
+              Showing {filteredRecords.length} of {records.length} recovery
+              records
+            </p>
+          )}
+        </section>
 
         {/* Form Modal */}
         {showForm && (

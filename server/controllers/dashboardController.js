@@ -126,7 +126,7 @@ const getDashboardSummary = async (req, res) => {
     const avgSaleMT = totalSaleMT / divisor;
     const avgTargetRs = totalTargetRs / divisor;
 
-    // Top 3 salesmen by sale value within the filtered set (per-period avg)
+    // Top 5 salesmen by sale value within the filtered set (per-period avg)
     const bySalesperson = {};
     trends.forEach((t) => {
       if (!bySalesperson[t.salesperson])
@@ -136,15 +136,24 @@ const getDashboardSummary = async (req, res) => {
     });
 
     const salespersonRegionMap = await getSalespersonRegionMap();
+    // Fetch designations from Salesman model for enriched display
+    const salesmanDocs = await Salesman.find({}, "name designation").lean();
+    const designationMap = {};
+    salesmanDocs.forEach((s) => { designationMap[s.name.trim().toLowerCase()] = s.designation; });
+
     const topSalesmen = Object.entries(bySalesperson)
-      .map(([name, v]) => ({
-        name,
-        sales: v.sales / divisor,
-        mt: Number((v.mt / divisor).toFixed(2)),
-        region: salespersonRegionMap[name] || "Unknown",
-      }))
+      .map(([name, v]) => {
+        const designation = designationMap[name.trim().toLowerCase()] || null;
+        return {
+          name,
+          sales: v.sales / divisor,
+          mt: Number((v.mt / divisor).toFixed(2)),
+          region: salespersonRegionMap[name] || "Unknown",
+          designation,
+        };
+      })
       .sort((a, b) => b.sales - a.sales)
-      .slice(0, 3);
+      .slice(0, 5);
 
     // Recovery has no equivalent in Trend data - still sourced from Salesman
     const salesmenQuery = {};
@@ -237,7 +246,7 @@ const getTopProducts = async (req, res) => {
         volume: Number((v.volume / 1000 / divisor).toFixed(2)), // MT per period
       }))
       .sort((a, b) => b.sales - a.sales)
-      .slice(0, 3);
+      .slice(0, 5);
 
     res.json(result);
   } catch (error) {

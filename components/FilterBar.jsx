@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Filter } from "lucide-react";
+import { Filter, RotateCcw } from "lucide-react";
 import api from "@/lib/api";
 
 export default function FilterBar({
@@ -12,13 +12,7 @@ export default function FilterBar({
   const [region, setRegion] = useState("all");
   const [product, setProduct] = useState("all");
   const [salesperson, setSalesperson] = useState("all");
-
-  // Breakdown/Duration are controlled by the Dashboard (via the `breakdown`
-  // prop) so their selections survive re-renders and page refreshes.
   const [years, setYears] = useState([]);
-
-  // Region / Product / Salesperson are intentionally limited to "All" (these
-  // scopes are shown as charts on the dashboard, not as single-select filters).
 
   useEffect(() => {
     const fetchFilterData = async () => {
@@ -51,9 +45,6 @@ export default function FilterBar({
 
   const handleBreakdownChange = (e) => {
     const { name, value } = e.target;
-    // Map the "breakdown" control to the "granularity" field the dashboard
-    // expects. The selects are controlled by the `breakdown` prop, so we read
-    // the other value from it (this is why changing one never drops the other).
     const current = breakdown || { granularity: "month", year: "all" };
     if (name === "breakdown") {
       onBreakdownChange({ granularity: value, year: current.year });
@@ -74,97 +65,120 @@ export default function FilterBar({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row gap-4 flex-wrap items-end">
+    <div className="flex flex-col sm:flex-row gap-3 flex-wrap items-end bg-card/60 border border-border/60 rounded-xl p-4 shadow-xs">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground w-full mb-1">
+        <Filter className="w-3.5 h-3.5 text-accent" />
+        <span>Filter & Scoping Controls</span>
+      </div>
+
       {/* Region Filter */}
-      <div className="flex-1 min-w-16">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+      <div className="flex-1 min-w-35">
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
           Region
         </label>
         <select
           name="region"
           value={region}
           onChange={handleChange}
-          className="w-full text-sm px-1 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
         >
-          <option className="text-sm" value="all">
+          <option
+            value="all"
+          >
             All Regions
           </option>
         </select>
       </div>
 
       {/* Product Filter */}
-      <div className="flex-1 min-w-16">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+      <div className="flex-1 min-w-35">
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
           Product
         </label>
         <select
           name="product"
           value={product}
           onChange={handleChange}
-          className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
         >
-          <option className="text-sm" value="all">
+          <option
+            value="all"
+          >
             All Products
           </option>
         </select>
       </div>
 
       {/* Salesperson Filter */}
-      <div className="flex-1 min-w-16">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+      <div className="flex-1 min-w-35">
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
           Salesperson
         </label>
         <select
           name="salesperson"
           value={salesperson}
           onChange={handleChange}
-          className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
         >
-          <option className="text-sm" value="all">
+          <option
+            value="all"
+          >
             All Salespeople
           </option>
         </select>
       </div>
 
-      {/* Breakdown Filter (Monthly / Quarterly / Yearly) */}
-      <div className="flex-1 min-w-16">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+      {/* Breakdown Filter */}
+      <div className="flex-1 min-w-35">
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
           Breakdown
         </label>
         <select
           name="breakdown"
           value={breakdown?.granularity || "month"}
           onChange={handleBreakdownChange}
-          className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all"
         >
-          <option className="text-sm" value="month">
+          <option
+            value="month"
+          >
             Monthly
           </option>
-          <option className="text-sm" value="quarter">
+          <option
+            value="quarter"
+          >
             Quarterly
           </option>
-          <option className="text-sm" value="year">
+          <option
+    
+            value="year"
+          >
             Yearly
           </option>
         </select>
       </div>
 
-      {/* Duration Filter (All / 2024 / 2025 / 2026) */}
-      <div className="flex-1 min-w-16">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Duration
+      {/* Duration Filter */}
+      <div className="flex-1 min-w-35">
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          Duration (Year)
         </label>
         <select
           name="breakdownYear"
           value={breakdown?.year || "all"}
           onChange={handleBreakdownChange}
-          className="w-full px-1 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
         >
-          <option className="text-sm" value="all">
-            All
+          <option
+            value="all"
+          >
+            All Years
           </option>
           {years.map((y) => (
-            <option className="text-sm" key={y} value={String(y)}>
+            <option
+              key={y}
+              value={String(y)}
+            >
               {y}
             </option>
           ))}
@@ -173,10 +187,12 @@ export default function FilterBar({
 
       {/* Clear Filters Button */}
       <button
+        type="button"
         onClick={handleClear}
-        className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-medium transition-colors text-xs"
+        className="flex items-center gap-1.5 px-3 py-2 bg-secondary/80 text-muted-foreground hover:text-foreground hover:bg-secondary border border-border/60 rounded-lg text-xs font-medium transition-all"
       >
-        Clear
+        <RotateCcw className="w-3.5 h-3.5" />
+        <span>Reset</span>
       </button>
     </div>
   );
