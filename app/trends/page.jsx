@@ -502,6 +502,7 @@ function TrendsContent() {
             variant="outline"
             onClick={handleBrowseClick}
             disabled={uploading}
+            className="hover:text-accent"
           >
             {uploading ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />

@@ -558,7 +558,7 @@ function Users() {
 
           <Button
             onClick={() => setShowForm(true)}
-            className="rounded-full bg-accent text-primary hover:bg-background hover:text-accent"
+            className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
           >
             <Plus className="mr-2 h-4 w-4" />
             Add User

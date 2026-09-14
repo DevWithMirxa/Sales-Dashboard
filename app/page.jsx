@@ -30,23 +30,36 @@ import TableCard from "@/components/TableCard";
 import TanStackDataTable from "@/components/TanStackDataTable";
 import FilterBar from "@/components/FilterBar";
 import DownloadButton from "@/components/DownloadButton";
-import { KPISkeleton, ChartSkeleton, TableSkeleton } from "@/components/ui/skeleton";
+import {
+  KPISkeleton,
+  ChartSkeleton,
+  TableSkeleton,
+} from "@/components/ui/skeleton";
 import SalesPersonForm from "@/components/forms/SalesPersonForm";
 import RegionForm from "@/components/forms/RegionForm";
 import ProductForm from "@/components/forms/ProductForm";
 import api from "@/lib/api";
-import { AlertTriangle, DollarSign, Package, Target, ShieldCheck, RefreshCw, Trophy, TrendingUp } from "lucide-react";
+import {
+  AlertTriangle,
+  DollarSign,
+  Package,
+  Target,
+  ShieldCheck,
+  RefreshCw,
+  Trophy,
+  TrendingUp,
+} from "lucide-react";
 import { exportToCSV } from "@/lib/csvExport";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 // Harmonious V0 Chart Color Tokens (Emerald, Cyan, Amber, Rose, Purple)
 const CHART_COLORS = [
-  "oklch(0.7 0.18 145)",  // Emerald accent
-  "oklch(0.7 0.18 220)",  // Vivid Cyan
-  "oklch(0.75 0.18 55)",  // Amber Gold
-  "oklch(0.65 0.2 25)",   // Coral Rose
-  "oklch(0.7 0.15 300)",  // Deep Purple
+  "oklch(0.7 0.18 145)", // Emerald accent
+  "oklch(0.7 0.18 220)", // Vivid Cyan
+  "oklch(0.75 0.18 55)", // Amber Gold
+  "oklch(0.65 0.2 25)", // Coral Rose
+  "oklch(0.7 0.15 300)", // Deep Purple
 ];
 
 const EXPORT_COLUMNS = [
@@ -141,7 +154,7 @@ function Dashboard() {
         setRegionSales(regionRes.data || []);
         setTopProducts(productsRes.data || []);
         setRegionProductComparison(
-          regionProdRes.data || { data: [], products: [] }
+          regionProdRes.data || { data: [], products: [] },
         );
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -149,7 +162,7 @@ function Dashboard() {
         setLoading(false);
       }
     },
-    [buildQuery]
+    [buildQuery],
   );
 
   useEffect(() => {
@@ -165,19 +178,19 @@ function Dashboard() {
         const records = res.data || [];
         const outstanding = records.reduce(
           (sum, r) => sum + Number(r.balance || 0),
-          0
+          0,
         );
         const recovered = records.reduce(
           (sum, r) => sum + Number(r.amountRecovered || 0),
-          0
+          0,
         );
         const overdueCount = records.filter(
-          (r) => r.status === "Overdue"
+          (r) => r.status === "Overdue",
         ).length;
         setRecoverySummary({ outstanding, recovered, overdueCount });
       })
       .catch((error) =>
-        console.error("Error fetching recovery summary:", error)
+        console.error("Error fetching recovery summary:", error),
       );
     return () => {
       active = false;
@@ -217,7 +230,7 @@ function Dashboard() {
         "",
         query
           ? `${window.location.pathname}?${query}`
-          : window.location.pathname
+          : window.location.pathname,
       );
     }
   };
@@ -249,7 +262,7 @@ function Dashboard() {
         sales: t.value ?? t.sales ?? "",
         target: "",
         volume: "",
-      })
+      }),
     );
 
     (regionSales || []).forEach((r) =>
@@ -259,7 +272,7 @@ function Dashboard() {
         sales: r.sales ?? "",
         target: r.target ?? "",
         volume: "",
-      })
+      }),
     );
 
     (topProducts || []).forEach((p) =>
@@ -269,7 +282,7 @@ function Dashboard() {
         sales: p.sales ?? "",
         target: "",
         volume: p.volume ?? "",
-      })
+      }),
     );
 
     (summary.topSalesmen || []).forEach((s) =>
@@ -280,7 +293,7 @@ function Dashboard() {
         sales: s.sales ?? "",
         target: "",
         volume: s.mt ?? "",
-      })
+      }),
     );
 
     return rows;
@@ -307,7 +320,9 @@ function Dashboard() {
       `Breakdown: ${breakdown.granularity}`,
       filters.region !== "all" ? `Region: ${filters.region}` : null,
       filters.product !== "all" ? `Product: ${filters.product}` : null,
-      filters.salesperson !== "all" ? `Salesperson: ${filters.salesperson}` : null,
+      filters.salesperson !== "all"
+        ? `Salesperson: ${filters.salesperson}`
+        : null,
     ]
       .filter(Boolean)
       .join("  |  ");
@@ -323,7 +338,7 @@ function Dashboard() {
           return val === undefined || val === null || val === ""
             ? "-"
             : String(val);
-        })
+        }),
       ),
       styles: { fontSize: 8, cellPadding: 3 },
       headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255] },
@@ -363,7 +378,9 @@ function Dashboard() {
       {
         accessorKey: "mt",
         header: "Volume (MT)",
-        cell: ({ getValue }) => <span className="font-mono">{getValue()} MT</span>,
+        cell: ({ getValue }) => (
+          <span className="font-mono">{getValue()} MT</span>
+        ),
       },
       {
         id: "status",
@@ -376,7 +393,7 @@ function Dashboard() {
         ),
       },
     ],
-    []
+    [],
   );
 
   return (
@@ -385,7 +402,7 @@ function Dashboard() {
         {/* Title Header Row & Actions */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/60 border border-border/70 rounded-xl p-5 shadow-xs">
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-foreground">
+            <h1 className="text-lg font-bold tracking-tight text-accent">
               Sales Operations Overview
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -438,7 +455,9 @@ function Dashboard() {
               <div className="bg-warning-soft border border-warning/30 rounded-xl p-4 text-warning-soft-foreground text-xs flex items-center gap-3">
                 <AlertTriangle className="w-5 h-5 shrink-0 text-warning" />
                 <div>
-                  <strong>Notice:</strong> Daily and Weekly breakdowns are not available — underlying dataset is recorded monthly. Showing Monthly breakdown.
+                  <strong>Notice:</strong> Daily and Weekly breakdowns are not
+                  available — underlying dataset is recorded monthly. Showing
+                  Monthly breakdown.
                 </div>
               </div>
             )}
@@ -517,21 +536,56 @@ function Dashboard() {
                     data={trendSeries.map((item) => ({
                       ...item,
                       revenue: item.value ?? item.sales ?? 0,
-                      target: item.target ?? Math.round((item.value ?? item.sales ?? 0) * 0.88),
+                      target:
+                        item.target ??
+                        Math.round((item.value ?? item.sales ?? 0) * 0.88),
                     }))}
                     margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                   >
                     <defs>
-                      <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="oklch(0.7 0.18 220)" stopOpacity={0.4} />
-                        <stop offset="100%" stopColor="oklch(0.7 0.18 220)" stopOpacity={0} />
+                      <linearGradient
+                        id="revenueGradient"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="oklch(0.7 0.18 220)"
+                          stopOpacity={0.4}
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="oklch(0.7 0.18 220)"
+                          stopOpacity={0}
+                        />
                       </linearGradient>
-                      <linearGradient id="targetGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="oklch(0.7 0.18 145)" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="oklch(0.7 0.18 145)" stopOpacity={0} />
+                      <linearGradient
+                        id="targetGradient"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="oklch(0.7 0.18 145)"
+                          stopOpacity={0.3}
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="oklch(0.7 0.18 145)"
+                          stopOpacity={0}
+                        />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} vertical={false} />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--border)"
+                      opacity={0.3}
+                      vertical={false}
+                    />
                     <XAxis
                       dataKey="label"
                       axisLine={false}
@@ -590,7 +644,8 @@ function Dashboard() {
                 </ResponsiveContainer>
               ) : (
                 <div className="flex items-center justify-center h-64 text-muted-foreground text-xs">
-                  No breakdown data available for selected year. Select another year or breakdown.
+                  No breakdown data available for selected year. Select another
+                  year or breakdown.
                 </div>
               )}
             </ChartCard>
@@ -604,10 +659,25 @@ function Dashboard() {
               >
                 {regionSales.length > 0 ? (
                   <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={regionSales} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
-                      <XAxis dataKey="region" stroke="var(--muted-foreground)" fontSize={11} />
-                      <YAxis stroke="var(--muted-foreground)" fontSize={11} tickFormatter={formatCompactRs} />
+                    <BarChart
+                      data={regionSales}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--border)"
+                        opacity={0.5}
+                      />
+                      <XAxis
+                        dataKey="region"
+                        stroke="var(--muted-foreground)"
+                        fontSize={11}
+                      />
+                      <YAxis
+                        stroke="var(--muted-foreground)"
+                        fontSize={11}
+                        tickFormatter={formatCompactRs}
+                      />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: "var(--popover)",
@@ -615,11 +685,26 @@ function Dashboard() {
                           borderRadius: "12px",
                           color: "var(--popover-foreground)",
                         }}
-                        formatter={(value, name) => [`Rs ${formatCompactRs(value)}`, name]}
+                        formatter={(value, name) => [
+                          `Rs ${formatCompactRs(value)}`,
+                          name,
+                        ]}
                       />
-                      <Legend wrapperStyle={{ paddingTop: "10px", fontSize: "12px" }} />
-                      <Bar dataKey="sales" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} name="Actual Sales" />
-                      <Bar dataKey="target" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} name="Target" />
+                      <Legend
+                        wrapperStyle={{ paddingTop: "10px", fontSize: "12px" }}
+                      />
+                      <Bar
+                        dataKey="sales"
+                        fill={CHART_COLORS[0]}
+                        radius={[4, 4, 0, 0]}
+                        name="Actual Sales"
+                      />
+                      <Bar
+                        dataKey="target"
+                        fill={CHART_COLORS[1]}
+                        radius={[4, 4, 0, 0]}
+                        name="Target"
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -636,36 +721,56 @@ function Dashboard() {
               >
                 {(() => {
                   const stageColors = [
-                    "bg-[oklch(0.7_0.18_220)]",  // Cyan
-                    "bg-[oklch(0.7_0.18_145)]",  // Emerald
-                    "bg-[oklch(0.75_0.18_55)]",  // Amber
-                    "bg-[oklch(0.65_0.2_25)]",   // Coral
-                    "bg-[oklch(0.7_0.15_300)]",  // Purple
+                    "bg-[oklch(0.7_0.18_220)]", // Cyan
+                    "bg-[oklch(0.7_0.18_145)]", // Emerald
+                    "bg-[oklch(0.75_0.18_55)]", // Amber
+                    "bg-[oklch(0.65_0.2_25)]", // Coral
+                    "bg-[oklch(0.7_0.15_300)]", // Purple
                   ];
 
                   const defaultProducts = [
-                    { name: "Anavite Vitamin Premix", sales: 2000000, volume: 1.37 },
+                    {
+                      name: "Anavite Vitamin Premix",
+                      sales: 2000000,
+                      volume: 1.37,
+                    },
                     { name: "Betaine HCL", sales: 2000000, volume: 4.33 },
                     { name: "Zagribind", sales: 1000000, volume: 3.97 },
-                    { name: "Toxin Binder Feed Grade", sales: 850000, volume: 2.15 },
-                    { name: "Acidifier Premix Ultra", sales: 620000, volume: 1.80 },
+                    {
+                      name: "Toxin Binder Feed Grade",
+                      sales: 850000,
+                      volume: 2.15,
+                    },
+                    {
+                      name: "Acidifier Premix Ultra",
+                      sales: 620000,
+                      volume: 1.8,
+                    },
                   ];
 
-                  const sourceProducts = topProducts.length >= 5
-                    ? topProducts.slice(0, 5)
-                    : topProducts.length > 0
-                      ? [
-                          ...topProducts,
-                          ...defaultProducts.filter(
-                            (dp) => !topProducts.some((tp) => tp.name === dp.name)
-                          ),
-                        ].slice(0, 5)
-                      : defaultProducts;
+                  const sourceProducts =
+                    topProducts.length >= 5
+                      ? topProducts.slice(0, 5)
+                      : topProducts.length > 0
+                        ? [
+                            ...topProducts,
+                            ...defaultProducts.filter(
+                              (dp) =>
+                                !topProducts.some((tp) => tp.name === dp.name),
+                            ),
+                          ].slice(0, 5)
+                        : defaultProducts;
 
-                  const totalSales = sourceProducts.reduce((s, p) => s + Number(p.sales || 0), 0);
+                  const totalSales = sourceProducts.reduce(
+                    (s, p) => s + Number(p.sales || 0),
+                    0,
+                  );
 
                   const items = sourceProducts.map((p, idx) => {
-                    const pct = totalSales > 0 ? Math.round((Number(p.sales || 0) / totalSales) * 100) : 0;
+                    const pct =
+                      totalSales > 0
+                        ? Math.round((Number(p.sales || 0) / totalSales) * 100)
+                        : 0;
                     return {
                       name: p.name,
                       countLabel: `Rs ${formatCompactRs(p.sales)} • ${p.volume} MT`,
@@ -677,17 +782,24 @@ function Dashboard() {
                   const totalValueDisplay = `Rs ${(totalSales / 1000000).toFixed(1)}M`;
 
                   return (
-                    <div className="flex flex-col justify-between h-[310px] py-4">
+                    <div className="flex flex-col justify-between h-77.5 py-4">
                       <div className="space-y-6">
                         {items.map((item) => (
                           <div key={item.name} className="space-y-1">
                             <div className="flex items-center justify-between text-xs font-medium">
-                              <span className="text-foreground truncate max-w-[200px]" title={item.name}>
+                              <span
+                                className="text-foreground truncate max-w-50"
+                                title={item.name}
+                              >
                                 {item.name}
                               </span>
                               <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-muted-foreground font-mono text-[12px]">{item.countLabel}</span>
-                                <span className="font-semibold text-foreground font-mono">{item.pct}%</span>
+                                <span className="text-muted-foreground font-mono text-[12px]">
+                                  {item.countLabel}
+                                </span>
+                                <span className="font-semibold text-foreground font-mono">
+                                  {item.pct}%
+                                </span>
                               </div>
                             </div>
                             <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -701,8 +813,12 @@ function Dashboard() {
                       </div>
 
                       <div className="pt-3 border-t border-border/60 flex items-center justify-between mt-auto">
-                        <span className="text-xs text-muted-foreground">Total Pipeline Value</span>
-                        <span className="text-base font-bold text-foreground font-mono">{totalValueDisplay}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Total Pipeline Value
+                        </span>
+                        <span className="text-base font-bold text-foreground font-mono">
+                          {totalValueDisplay}
+                        </span>
                       </div>
                     </div>
                   );
@@ -719,9 +835,20 @@ function Dashboard() {
               >
                 {regionProductComparison.data.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={regionProductComparison.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
-                      <XAxis dataKey="region" stroke="var(--muted-foreground)" fontSize={11} />
+                    <BarChart
+                      data={regionProductComparison.data}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--border)"
+                        opacity={0.5}
+                      />
+                      <XAxis
+                        dataKey="region"
+                        stroke="var(--muted-foreground)"
+                        fontSize={11}
+                      />
                       <YAxis stroke="var(--muted-foreground)" fontSize={11} />
                       <Tooltip
                         contentStyle={{
@@ -731,7 +858,9 @@ function Dashboard() {
                           color: "var(--popover-foreground)",
                         }}
                       />
-                      <Legend wrapperStyle={{ paddingTop: "10px", fontSize: "12px" }} />
+                      <Legend
+                        wrapperStyle={{ paddingTop: "10px", fontSize: "12px" }}
+                      />
                       {regionProductComparison.products.map((prodName, i) => (
                         <Bar
                           key={prodName}
@@ -762,23 +891,62 @@ function Dashboard() {
                 {(() => {
                   // Real salesmen from the database (ranked by actual sales performance)
                   const defaultSalesmen = [
-                    { name: "Dr. M. Imran Aslam", sales: 10077499, mt: 13.18, region: "All Pakistan", designation: "MM", change: "+18%" },
-                    { name: "Mr. Basit Aziz", sales: 9026248, mt: 7.40, region: "Kamalia/Samundari", designation: "ASM", change: "+14%" },
-                    { name: "Mr. Ameen Matee", sales: 6116999, mt: 12.10, region: "Karachi", designation: "RSM", change: "+9%" },
-                    { name: "Mr. Junaid", sales: 3617494, mt: 3.23, region: "Multan", designation: "ASM", change: "+6%" },
-                    { name: "Muzamil Ur Rehman", sales: 3054999, mt: 2.48, region: "Karachi", designation: "Distributor", change: "+11%" },
+                    {
+                      name: "Dr. M. Imran Aslam",
+                      sales: 10077499,
+                      mt: 13.18,
+                      region: "All Pakistan",
+                      designation: "MM",
+                      change: "+18%",
+                    },
+                    {
+                      name: "Mr. Basit Aziz",
+                      sales: 9026248,
+                      mt: 7.4,
+                      region: "Kamalia/Samundari",
+                      designation: "ASM",
+                      change: "+14%",
+                    },
+                    {
+                      name: "Mr. Ameen Matee",
+                      sales: 6116999,
+                      mt: 12.1,
+                      region: "Karachi",
+                      designation: "RSM",
+                      change: "+9%",
+                    },
+                    {
+                      name: "Mr. Junaid",
+                      sales: 3617494,
+                      mt: 3.23,
+                      region: "Multan",
+                      designation: "ASM",
+                      change: "+6%",
+                    },
+                    {
+                      name: "Muzamil Ur Rehman",
+                      sales: 3054999,
+                      mt: 2.48,
+                      region: "Karachi",
+                      designation: "Distributor",
+                      change: "+11%",
+                    },
                   ];
 
-                  const rawList = summary.topSalesmen.length > 0 ? summary.topSalesmen : defaultSalesmen;
+                  const rawList =
+                    summary.topSalesmen.length > 0
+                      ? summary.topSalesmen
+                      : defaultSalesmen;
 
-                  const performers = rawList.length >= 5
-                    ? rawList.slice(0, 5)
-                    : [
-                        ...rawList,
-                        ...defaultSalesmen.filter(
-                          (ds) => !rawList.some((rs) => rs.name === ds.name)
-                        ),
-                      ].slice(0, 5);
+                  const performers =
+                    rawList.length >= 5
+                      ? rawList.slice(0, 5)
+                      : [
+                          ...rawList,
+                          ...defaultSalesmen.filter(
+                            (ds) => !rawList.some((rs) => rs.name === ds.name),
+                          ),
+                        ].slice(0, 5);
 
                   const changes = ["+15%", "+12%", "+8%", "+5%", "+9%"];
 
@@ -794,13 +962,15 @@ function Dashboard() {
                           .toUpperCase();
 
                         const salesVal = person.sales || 0;
-                        const formattedSales = salesVal >= 1000000
-                          ? `Rs ${(salesVal / 1000000).toFixed(2)}M`
-                          : `Rs ${(salesVal / 1000).toFixed(0)}K`;
+                        const formattedSales =
+                          salesVal >= 1000000
+                            ? `Rs ${(salesVal / 1000000).toFixed(2)}M`
+                            : `Rs ${(salesVal / 1000).toFixed(0)}K`;
 
                         const dealsOrVolume = person.designation
                           ? `${person.designation} · ${person.region || "Sales Leader"}`
-                          : person.region || (person.mt ? `${person.mt} MT` : "Sales Leader");
+                          : person.region ||
+                            (person.mt ? `${person.mt} MT` : "Sales Leader");
 
                         return (
                           <div
@@ -809,7 +979,7 @@ function Dashboard() {
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               <div className="relative shrink-0">
-                                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent/80 to-chart-1 flex items-center justify-center text-xs font-semibold text-accent-foreground shadow-xs">
+                                <div className="w-9 h-9 rounded-full bg-linear-to-br from-accent/80 to-chart-1 flex items-center justify-center text-xs font-semibold text-accent-foreground shadow-xs">
                                   {initials}
                                 </div>
                                 {rank <= 3 && (
@@ -819,16 +989,23 @@ function Dashboard() {
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <p className="text-xs font-semibold text-foreground truncate">{person.name}</p>
-                                <p className="text-[11px] text-muted-foreground truncate">{dealsOrVolume}</p>
+                                <p className="text-xs font-semibold text-foreground truncate">
+                                  {person.name}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                  {dealsOrVolume}
+                                </p>
                               </div>
                             </div>
 
                             <div className="text-right shrink-0">
-                              <p className="text-xs font-bold font-mono text-foreground">{formattedSales}</p>
+                              <p className="text-xs font-bold font-mono text-foreground">
+                                {formattedSales}
+                              </p>
                               <div className="flex items-center justify-end gap-1 text-[11px] text-success font-medium">
                                 <TrendingUp className="w-3 h-3 text-success" />
-                                {person.change || changes[index % changes.length]}
+                                {person.change ||
+                                  changes[index % changes.length]}
                               </div>
                             </div>
                           </div>

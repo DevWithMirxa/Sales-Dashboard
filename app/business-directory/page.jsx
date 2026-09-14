@@ -536,7 +536,7 @@ function BusinessDirectoryContent() {
         </div>
         <Button
           onClick={() => setEditingRecord({ _view: "feed-mills" })}
-          className="shrink-0 bg-black text-accent -foreground hover:bg-accent hover:text-black border-accent"
+          className="shrink-0 bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
         >
           <Plus className="mr-2 h-4 w-4" />
           Add New Feed Mill
@@ -669,7 +669,7 @@ function BusinessDirectoryContent() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 bg-transparent"
+                      className="flex-1 bg-transparent text-foreground hover:text-accent"
                       onClick={() => setEditingRecord(row)}
                     >
                       <Edit className="mr-1.5 h-3.5 w-3.5" />
@@ -902,6 +902,7 @@ function BusinessDirectoryContent() {
             <div className="flex items-center justify-end gap-2 border-t p-4">
               <Button
                 variant="outline"
+                className="hover:text-accent"
                 onClick={() => {
                   setEditingRecord(viewingRecord);
                   setViewingRecord(null);

@@ -93,7 +93,7 @@ export default function Sidebar({ isOpen, onToggle }) {
     <aside
       className={cn(
         "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-out flex flex-col shrink-0 select-none",
-        isOpen ? "w-[260px]" : "w-[72px]"
+        isOpen ? "w-65" : "w-18",
       )}
     >
       {/* Brand Header */}
@@ -105,7 +105,7 @@ export default function Sidebar({ isOpen, onToggle }) {
           <span
             className={cn(
               "font-semibold text-lg text-sidebar-foreground tracking-tight whitespace-nowrap transition-all duration-300",
-              isOpen ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"
+              isOpen ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden",
             )}
           >
             Sales<span className="text-accent">Hub</span>
@@ -135,7 +135,7 @@ export default function Sidebar({ isOpen, onToggle }) {
                       active
                         ? "bg-sidebar-accent text-sidebar-foreground"
                         : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50",
-                      !isOpen && "justify-center px-0"
+                      !isOpen && "justify-center px-0",
                     )}
                     title={!isOpen ? item.label : undefined}
                   >
@@ -143,13 +143,13 @@ export default function Sidebar({ isOpen, onToggle }) {
                     <span
                       className={cn(
                         "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-accent transition-all duration-300",
-                        active ? "opacity-100" : "opacity-0"
+                        active ? "opacity-100" : "opacity-0",
                       )}
                     />
                     <Icon
                       className={cn(
                         "w-5 h-5 shrink-0 transition-transform duration-200",
-                        active ? "text-accent" : "group-hover:scale-110"
+                        active ? "text-accent" : "group-hover:scale-110",
                       )}
                     />
                     {isOpen && (
@@ -171,7 +171,7 @@ export default function Sidebar({ isOpen, onToggle }) {
           <div
             className={cn(
               "absolute bottom-full mb-2 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200",
-              isOpen ? "left-3 right-3" : "left-3 w-56"
+              isOpen ? "left-3 right-3" : "left-3 w-56",
             )}
           >
             <div className="p-3.5 border-b border-border bg-muted/20">
@@ -208,11 +208,11 @@ export default function Sidebar({ isOpen, onToggle }) {
             onClick={() => setShowAccountMenu((v) => !v)}
             className={cn(
               "flex-1 flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent/60 transition-colors text-left min-w-0 border border-transparent hover:border-sidebar-border",
-              !isOpen && "justify-center px-0"
+              !isOpen && "justify-center px-0",
             )}
             title={user?.name || "Account Settings"}
           >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent/80 to-chart-1 flex items-center justify-center text-xs font-semibold text-accent-foreground shrink-0 shadow-sm">
+            <div className="w-8 h-8 rounded-lg bg-linear-to-br from-accent/80 to-chart-1 flex items-center justify-center text-xs font-semibold text-accent-foreground shrink-0 shadow-sm">
               {getInitials(user?.name)}
             </div>
             {isOpen && (

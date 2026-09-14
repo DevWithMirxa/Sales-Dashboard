@@ -583,7 +583,7 @@ function Targets() {
                                     onConfirm={() => handleDelete(target._id)}
                                   >
                                     <button
-                                      className="rounded p-1 text-muted-foreground hover:bg-destructive-soft hover:text-destructive-soft-foreground"
+                                      className="rounded p-1 text-muted-foreground hover:bg-destructive-soft hover:text-accent"
                                       title="Delete target"
                                     >
                                       <Trash2 className="h-4 w-4" />
@@ -595,7 +595,7 @@ function Targets() {
                                         isOpen ? null : target._id,
                                       )
                                     }
-                                    className="ml-auto flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-accent hover:bg-secondary"
+                                    className="ml-auto flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-accent hover:bg-secondary hover:text-accent"
                                   >
                                     <Eye className="h-3.5 w-3.5" />
                                     {isOpen ? "Hide details" : "View details"}
@@ -641,7 +641,7 @@ function Targets() {
                           </div>
                           <button
                             onClick={() => setExpandedTarget(null)}
-                            className="rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            className="rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-accent"
                           >
                             Hide details
                           </button>

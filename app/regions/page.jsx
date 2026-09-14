@@ -199,7 +199,7 @@ function Regions() {
               onPdf={handleExportPDF}
             />
             <Button
-              className="bg-accent text-primary hover:bg-background hover:text-accent"
+              className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
               onClick={() => setShowForm(true)}
             >
               <Plus className="mr-2 h-4 w-4" />

@@ -461,9 +461,9 @@ function Products() {
                   )}
                   <Button
                     onClick={() => setShowForm(true)}
-                    className="shrink-0"
+                    className="shrink-0 bg-accent text-accent-foreground hover:bg-accent/90"
                   >
-                    <Plus className="mr-2 h-4 w-4" />
+                    <Plus className="mr-4 h-4 w-4 font-semibold" />
                     Add Product
                   </Button>
                 </div>
