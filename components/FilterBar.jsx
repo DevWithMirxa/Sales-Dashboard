@@ -13,13 +13,21 @@ export default function FilterBar({
   const [product, setProduct] = useState("all");
   const [salesperson, setSalesperson] = useState("all");
   const [years, setYears] = useState([]);
+  const [regions, setRegions] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [salespersons, setSalespersons] = useState([]);
 
   useEffect(() => {
     const fetchFilterData = async () => {
       try {
-        const trendsRes = await api.get("/trends/filters");
-        const data = trendsRes.data || {};
+        // Options come from the real pages (Salesman / Product / Region)
+        // plus whatever appears in actual sales and targets.
+        const res = await api.get("/dashboard/filters");
+        const data = res.data || {};
         setYears((data.years || []).slice().sort());
+        setRegions(data.regions || []);
+        setProducts(data.products || []);
+        setSalespersons(data.salespersons || []);
       } catch (error) {
         console.error("Error fetching filter data:", error);
       }
@@ -82,11 +90,12 @@ export default function FilterBar({
           onChange={handleChange}
           className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
         >
-          <option
-            value="all"
-          >
-            All Regions
-          </option>
+          <option value="all">All Regions</option>
+          {regions.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -101,11 +110,12 @@ export default function FilterBar({
           onChange={handleChange}
           className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
         >
-          <option
-            value="all"
-          >
-            All Products
-          </option>
+          <option value="all">All Products</option>
+          {products.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -120,11 +130,12 @@ export default function FilterBar({
           onChange={handleChange}
           className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
         >
-          <option
-            value="all"
-          >
-            All Salespeople
-          </option>
+          <option value="all">All Salespeople</option>
+          {salespersons.map((sp) => (
+            <option key={sp} value={sp}>
+              {sp}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -139,22 +150,9 @@ export default function FilterBar({
           onChange={handleBreakdownChange}
           className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all"
         >
-          <option
-            value="month"
-          >
-            Monthly
-          </option>
-          <option
-            value="quarter"
-          >
-            Quarterly
-          </option>
-          <option
-    
-            value="year"
-          >
-            Yearly
-          </option>
+          <option value="month">Monthly</option>
+          <option value="quarter">Quarterly</option>
+          <option value="year">Yearly</option>
         </select>
       </div>
 
@@ -169,16 +167,9 @@ export default function FilterBar({
           onChange={handleBreakdownChange}
           className="w-full text-xs px-3 py-2 bg-secondary/70 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
         >
-          <option
-            value="all"
-          >
-            All Years
-          </option>
+          <option value="all">All Years</option>
           {years.map((y) => (
-            <option
-              key={y}
-              value={String(y)}
-            >
+            <option key={y} value={String(y)}>
               {y}
             </option>
           ))}

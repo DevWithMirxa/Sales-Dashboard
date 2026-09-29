@@ -26,11 +26,16 @@ const PERIODS = ["Daily", "Weekly", "Monthly", "Quarterly", "Yearly"];
 const STATUSES = ["active", "inactive", "completed"];
 const UNITS = ["kg", "bags", "tons", "units"];
 
+// "input type=month" wants/returns "YYYY-MM" - this is the single source of
+// truth for that format everywhere in this file.
+const currentMonthValue = () => new Date().toISOString().slice(0, 7);
+
 const buildFormData = (editingTarget) => {
   if (!editingTarget) {
     return {
       targetName: "",
       period: "Monthly",
+      periodStart: currentMonthValue(),
       assignedTo: "",
       region: "",
       status: "active",
@@ -41,6 +46,13 @@ const buildFormData = (editingTarget) => {
   return {
     targetName: editingTarget.targetName || "",
     period: editingTarget.period || "Monthly",
+    // editingTarget.periodStart comes back from the API as an ISO date
+    // string (or may be absent on a record created before this field
+    // existed) - slice to "YYYY-MM" for the month input, falling back to
+    // the current month so the field is never left blank.
+    periodStart: editingTarget.periodStart
+      ? String(editingTarget.periodStart).slice(0, 7)
+      : currentMonthValue(),
     assignedTo: editingTarget.assignedTo?._id || editingTarget.assignedTo || "",
     region: editingTarget.region || editingTarget.assignedTo?.area || "",
     status: editingTarget.status || "active",
@@ -188,6 +200,8 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
     const nextErrors = {};
     if (!formData.assignedTo)
       nextErrors.assignedTo = "Please select a salesman";
+    if (!formData.periodStart)
+      nextErrors.periodStart = "Please select which month this target is for";
     if (formData.products.length === 0)
       nextErrors.products = "Please add at least one product";
     setErrors(nextErrors);
@@ -204,6 +218,10 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
       const payload = {
         targetName: formData.targetName.trim(),
         period: formData.period,
+        // "YYYY-MM" -> a real Date on the 1st of that month. The backend
+        // normalizes this again itself (see models/Target.js), so this
+        // just needs to land on the right month/year.
+        periodStart: `${formData.periodStart}-01`,
         assignedTo: formData.assignedTo,
         region: formData.region.trim(),
         status: formData.status,
@@ -263,7 +281,7 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="targetName">Target Name (optional)</Label>
                 <Input
@@ -274,6 +292,24 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
                   onChange={handleFieldChange}
                   placeholder="e.g. Q1 Feed Push"
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="periodStart">
+                  Month<span className="text-destructive ml-0.5">*</span>
+                </Label>
+                <Input
+                  id="periodStart"
+                  type="month"
+                  name="periodStart"
+                  value={formData.periodStart}
+                  onChange={handleFieldChange}
+                />
+                {errors.periodStart && (
+                  <p className="text-xs text-destructive">
+                    {errors.periodStart}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -295,6 +331,17 @@ export default function TargetForm({ onClose, editingTarget, onSuccess }) {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  {formData.period === "Monthly" &&
+                    "Covers the selected month only."}
+                  {formData.period === "Quarterly" &&
+                    "Covers the selected month plus the next two."}
+                  {formData.period === "Yearly" &&
+                    "Covers the selected month plus the next eleven."}
+                  {(formData.period === "Daily" ||
+                    formData.period === "Weekly") &&
+                    "Tracked as the selected month (no day/week-level breakdown yet)."}
+                </p>
               </div>
             </div>
 

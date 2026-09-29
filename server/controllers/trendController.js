@@ -1,6 +1,10 @@
 const Trend = require("../models/Trend");
 const XLSX = require("xlsx");
 const { getTrendRegions } = require("../utils/salespersonRegion");
+const {
+  getComputedTrendRows,
+  filterComputedRows,
+} = require("../utils/computeTrendRows");
 
 const MONTH_MAP = {
   jan: 1,
@@ -679,8 +683,42 @@ const downloadTrendsTemplate = async (req, res) => {
   }
 };
 
+// GET /trends/live - same row shape as GET /trends, but computed live from
+// Sale + Target (+ Salesman/Product) instead of the uploaded Trend collection.
+// Used by Reports, Forecasting and Performance Flow so they reflect the real
+// pages' data. The Trends page itself keeps using the Trend collection.
+const getLiveTrends = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const all = await getComputedTrendRows();
+    const filtered = filterComputedRows(all, {
+      year: req.query.year,
+      month: req.query.month,
+      product: req.query.product,
+      salesperson: req.query.salesperson,
+      region: req.query.region,
+    }).sort((a, b) =>
+      a.period !== b.period
+        ? b.period.localeCompare(a.period)
+        : a.salesperson.localeCompare(b.salesperson) ||
+          a.product.localeCompare(b.product),
+    );
+    const start = (page - 1) * limit;
+    res.json({
+      rows: filtered.slice(start, start + limit),
+      total: filtered.length,
+      page,
+      limit,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getTrends,
+  getLiveTrends,
   getFilters,
   getByProduct,
   getBySalesperson,

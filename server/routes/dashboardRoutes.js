@@ -5,6 +5,8 @@ const {
   getRegionSales,
   getTopProducts,
   getRegionProductComparison,
+  getDashboardFilters,
+  getDashboardSeries,
 } = require("../controllers/dashboardController");
 const { protect, authorize } = require("../middleware/auth");
 
@@ -16,5 +18,7 @@ router.get("/summary", getDashboardSummary);
 router.get("/region-sales", getRegionSales);
 router.get("/top-products", getTopProducts);
 router.get("/region-product-comparison", getRegionProductComparison);
+router.get("/filters", getDashboardFilters);
+router.get("/series", getDashboardSeries);
 
 module.exports = router;

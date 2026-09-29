@@ -3,6 +3,7 @@ const multer = require("multer");
 const router = express.Router();
 const {
   getTrends,
+  getLiveTrends,
   getFilters,
   getByProduct,
   getBySalesperson,
@@ -23,6 +24,7 @@ const upload = multer({
 });
 
 router.get("/", getTrends);
+router.get("/live", getLiveTrends);
 router.get("/filters", getFilters);
 router.get("/by-product", getByProduct);
 router.get("/by-salesperson", getBySalesperson);

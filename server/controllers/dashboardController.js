@@ -1,59 +1,18 @@
 const Salesman = require("../models/Salesman");
 const Region = require("../models/Region");
-const Trend = require("../models/Trend");
-const { getSalespersonRegionMap } = require("../utils/salespersonRegion");
+const Recovery = require("../models/Recovery");
+const Product = require("../models/Product");
+const {
+  getComputedTrendRows,
+  filterComputedRows,
+  MONTH_LABELS,
+} = require("../utils/computeTrendRows");
 
-// No real daily/weekly granularity exists in the Trends data (it's monthly),
-// so those periods intentionally return empty results rather than a
-// misleading "rolled up" number.
+// No real daily/weekly granularity exists in the computed data (Sale/Target
+// are resolved down to whole calendar months - see computeTrendRows.js), so
+// those periods intentionally return empty results rather than a
+// misleading "rolled up" number. Kept from the previous implementation.
 const INSUFFICIENT_GRANULARITY_PERIODS = ["D", "W"];
-
-// Trend.salesperson is a plain string (not a ref), so to filter by region we
-// resolve it through getSalespersonRegionMap(): for each salesperson that
-// actually exists in the Trend data, it finds the matching Salesman's area
-// (tolerant name matching) or a region tag embedded in the name. Filtering by
-// the RESOLVED trend salesperson names keeps the query exact and guarantees
-// that selecting a region returns the sales records that belong to it.
-const buildTrendMatch = async ({ year, region, product, salesperson }) => {
-  const match = {};
-
-  // Optional year filter (e.g. 2024). "" / "all" / undefined = all years.
-  if (year && year !== "all" && year !== "") {
-    match.year = Number(year);
-  }
-
-  if (product && product !== "all") {
-    match.product = product;
-  }
-
-  if (salesperson && salesperson !== "all") {
-    match.salesperson = salesperson;
-  }
-
-  if (region && region !== "all") {
-    const salespersonRegionMap = await getSalespersonRegionMap();
-    // Trend salesperson names whose resolved region equals the selection
-    const salespersonNamesInRegion = Object.entries(salespersonRegionMap)
-      .filter(([, area]) => area === region)
-      .map(([name]) => name);
-
-    if (match.salesperson) {
-      // Both region AND salesperson selected - only valid if that
-      // salesperson actually belongs to the selected region.
-      match.salesperson = salespersonNamesInRegion.includes(match.salesperson)
-        ? match.salesperson
-        : "__no_match__";
-    } else {
-      match.salesperson = {
-        $in: salespersonNamesInRegion.length
-          ? salespersonNamesInRegion
-          : ["__no_match__"],
-      };
-    }
-  }
-
-  return match;
-};
 
 const parseQuery = (req) => ({
   period: req.query.period || "M",
@@ -70,8 +29,8 @@ const parseQuery = (req) => ({
 //   month   -> 12 * number-of-years  (Monthly shows an average per month)
 //   quarter -> 4  * number-of-years  (Quarterly shows an average per quarter)
 //   year    -> number-of-years       (Yearly shows the full-year total)
-const getPeriodDivisor = (granularity, trends) => {
-  const years = new Set((trends || []).map((t) => t && t.year)).size;
+const getPeriodDivisor = (granularity, rows) => {
+  const years = new Set((rows || []).map((t) => t && t.year)).size;
   const n = Math.max(1, years);
   if (granularity === "month") return 12 * n;
   if (granularity === "quarter") return 4 * n;
@@ -80,7 +39,7 @@ const getPeriodDivisor = (granularity, trends) => {
 
 /**
  * GET /dashboard/summary
- * KPI totals + top 3 salesmen, computed from Trend data (sales/targets)
+ * KPI totals + top 5 salesmen, computed live from Sale/Target data
  * and Salesman data (recovery).
  */
 const getDashboardSummary = async (req, res) => {
@@ -102,17 +61,19 @@ const getDashboardSummary = async (req, res) => {
       });
     }
 
-    const match = await buildTrendMatch({ year, region, product, salesperson });
-    const trends = await Trend.find(match);
-    const divisor = getPeriodDivisor(granularity, trends);
+    const allRows = await getComputedTrendRows();
+    const rows = filterComputedRows(allRows, {
+      year,
+      region,
+      product,
+      salesperson,
+    });
+    const divisor = getPeriodDivisor(granularity, rows);
 
-    const totalSaleRs = trends.reduce(
-      (sum, t) => sum + (t.saleValueRs || 0),
-      0,
-    );
+    const totalSaleRs = rows.reduce((sum, t) => sum + (t.saleValueRs || 0), 0);
     const totalSaleMT =
-      trends.reduce((sum, t) => sum + (t.saleVolumeKg || 0), 0) / 1000;
-    const totalTargetRs = trends.reduce(
+      rows.reduce((sum, t) => sum + (t.saleVolumeKg || 0), 0) / 1000;
+    const totalTargetRs = rows.reduce(
       (sum, t) => sum + (t.targetValueRs || 0),
       0,
     );
@@ -128,18 +89,19 @@ const getDashboardSummary = async (req, res) => {
 
     // Top 5 salesmen by sale value within the filtered set (per-period avg)
     const bySalesperson = {};
-    trends.forEach((t) => {
+    rows.forEach((t) => {
       if (!bySalesperson[t.salesperson])
-        bySalesperson[t.salesperson] = { sales: 0, mt: 0 };
+        bySalesperson[t.salesperson] = { sales: 0, mt: 0, region: t.region };
       bySalesperson[t.salesperson].sales += t.saleValueRs || 0;
       bySalesperson[t.salesperson].mt += (t.saleVolumeKg || 0) / 1000;
     });
 
-    const salespersonRegionMap = await getSalespersonRegionMap();
     // Fetch designations from Salesman model for enriched display
     const salesmanDocs = await Salesman.find({}, "name designation").lean();
     const designationMap = {};
-    salesmanDocs.forEach((s) => { designationMap[s.name.trim().toLowerCase()] = s.designation; });
+    salesmanDocs.forEach((s) => {
+      designationMap[s.name.trim().toLowerCase()] = s.designation;
+    });
 
     const topSalesmen = Object.entries(bySalesperson)
       .map(([name, v]) => {
@@ -148,20 +110,30 @@ const getDashboardSummary = async (req, res) => {
           name,
           sales: v.sales / divisor,
           mt: Number((v.mt / divisor).toFixed(2)),
-          region: salespersonRegionMap[name] || "Unknown",
+          region: v.region || "Unknown",
           designation,
         };
       })
       .sort((a, b) => b.sales - a.sales)
       .slice(0, 5);
 
-    // Recovery has no equivalent in Trend data - still sourced from Salesman
-    const salesmenQuery = {};
-    if (region !== "all") salesmenQuery.area = region;
-    if (salesperson !== "all") salesmenQuery.name = salesperson;
-    const salesmenForRecovery = await Salesman.find(salesmenQuery);
-    const recovery = salesmenForRecovery.reduce(
-      (sum, s) => sum + (Number(s.recovery?.amount) || 0),
+    // Recovery comes from the actual Recovery page (Recovery collection):
+    // outstanding = invoiced - recovered, respecting the region/salesperson
+    // filters. (Previously this read a static number stored on Salesman.)
+    const recoveryQuery = {};
+    if (region !== "all") recoveryQuery.region = region;
+    if (salesperson !== "all") recoveryQuery.salesperson = salesperson;
+    const recoveryDocs = await Recovery.find(
+      recoveryQuery,
+      "invoiceAmount amountRecovered",
+    ).lean();
+    const recovery = recoveryDocs.reduce(
+      (sum, r) =>
+        sum +
+        Math.max(
+          (Number(r.invoiceAmount) || 0) - (Number(r.amountRecovered) || 0),
+          0,
+        ),
       0,
     );
 
@@ -182,7 +154,8 @@ const getDashboardSummary = async (req, res) => {
 
 /**
  * GET /dashboard/region-sales
- * Sale vs Target grouped by region (resolved via each salesperson's area).
+ * Sale vs Target grouped by region (each row already carries its own
+ * region directly - no salesperson->region lookup needed anymore).
  */
 const getRegionSales = async (req, res) => {
   try {
@@ -190,14 +163,18 @@ const getRegionSales = async (req, res) => {
       parseQuery(req);
     if (INSUFFICIENT_GRANULARITY_PERIODS.includes(period)) return res.json([]);
 
-    const match = await buildTrendMatch({ year, region, product, salesperson });
-    const trends = await Trend.find(match);
-    const divisor = getPeriodDivisor(granularity, trends);
-    const salespersonRegionMap = await getSalespersonRegionMap();
+    const allRows = await getComputedTrendRows();
+    const rows = filterComputedRows(allRows, {
+      year,
+      region,
+      product,
+      salesperson,
+    });
+    const divisor = getPeriodDivisor(granularity, rows);
 
     const regionMap = {};
-    trends.forEach((t) => {
-      const r = salespersonRegionMap[t.salesperson] || "Unknown";
+    rows.forEach((t) => {
+      const r = t.region || "Unknown";
       if (!regionMap[r]) regionMap[r] = { sales: 0, target: 0 };
       regionMap[r].sales += t.saleValueRs || 0;
       regionMap[r].target += t.targetValueRs || 0;
@@ -219,7 +196,7 @@ const getRegionSales = async (req, res) => {
 
 /**
  * GET /dashboard/top-products
- * Top 3 products by sale value within the filtered set.
+ * Top 5 products by sale value within the filtered set.
  */
 const getTopProducts = async (req, res) => {
   try {
@@ -227,12 +204,17 @@ const getTopProducts = async (req, res) => {
       parseQuery(req);
     if (INSUFFICIENT_GRANULARITY_PERIODS.includes(period)) return res.json([]);
 
-    const match = await buildTrendMatch({ year, region, product, salesperson });
-    const trends = await Trend.find(match);
-    const divisor = getPeriodDivisor(granularity, trends);
+    const allRows = await getComputedTrendRows();
+    const rows = filterComputedRows(allRows, {
+      year,
+      region,
+      product,
+      salesperson,
+    });
+    const divisor = getPeriodDivisor(granularity, rows);
 
     const byProduct = {};
-    trends.forEach((t) => {
+    rows.forEach((t) => {
       if (!byProduct[t.product]) byProduct[t.product] = { sales: 0, volume: 0 };
       byProduct[t.product].sales += t.saleValueRs || 0;
       byProduct[t.product].volume += t.saleVolumeKg || 0;
@@ -268,13 +250,17 @@ const getRegionProductComparison = async (req, res) => {
       return res.json({ data: [], products: [] });
     }
 
-    const match = await buildTrendMatch({ year, region, product, salesperson });
-    const trends = await Trend.find(match);
-    const divisor = getPeriodDivisor(granularity, trends);
-    const salespersonRegionMap = await getSalespersonRegionMap();
+    const allRows = await getComputedTrendRows();
+    const rows = filterComputedRows(allRows, {
+      year,
+      region,
+      product,
+      salesperson,
+    });
+    const divisor = getPeriodDivisor(granularity, rows);
 
     const productTotals = {};
-    trends.forEach((t) => {
+    rows.forEach((t) => {
       productTotals[t.product] =
         (productTotals[t.product] || 0) + (t.saleVolumeKg || 0);
     });
@@ -284,9 +270,9 @@ const getRegionProductComparison = async (req, res) => {
       .map(([name]) => name);
 
     const regionProductMap = {};
-    trends.forEach((t) => {
+    rows.forEach((t) => {
       if (!topProductNames.includes(t.product)) return;
-      const r = salespersonRegionMap[t.salesperson] || "Unknown";
+      const r = t.region || "Unknown";
       if (!regionProductMap[r]) regionProductMap[r] = {};
       regionProductMap[r][t.product] =
         (regionProductMap[r][t.product] || 0) + (t.saleVolumeKg || 0) / 1000;
@@ -308,9 +294,136 @@ const getRegionProductComparison = async (req, res) => {
   }
 };
 
+/**
+ * GET /dashboard/filters
+ * Dropdown options for the dashboard filter bar, taken from the real pages
+ * (Salesman, Product, Region) plus whatever appears in actual sales/targets.
+ * Same response shape the old /trends/filters returned.
+ */
+const getDashboardFilters = async (req, res) => {
+  try {
+    const [salesmen, products, regionDocs, rows] = await Promise.all([
+      Salesman.find({}, "name").lean(),
+      Product.find({}, "name").lean(),
+      Region.find({}, "region").lean(),
+      getComputedTrendRows(),
+    ]);
+    const clean = (arr) =>
+      [
+        ...new Set(arr.map((v) => String(v || "").trim()).filter(Boolean)),
+      ].sort();
+
+    const years = [...new Set(rows.map((r) => r.year))].sort((a, b) => a - b);
+    if (!years.length) years.push(new Date().getFullYear());
+
+    res.json({
+      products: clean([
+        ...products.map((p) => p.name),
+        ...rows.map((r) => r.product),
+      ]),
+      salespersons: clean([
+        ...salesmen.map((s) => s.name),
+        ...rows.map((r) => r.salesperson),
+      ]),
+      regions: clean([
+        ...regionDocs.map((r) => r.region),
+        ...rows.map((r) => r.region),
+      ]),
+      years,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * GET /dashboard/series
+ * Month / quarter / year Sale-vs-Target buckets for the "Sale Breakdown"
+ * chart, computed live from Sale + Target. Same response shape the old
+ * /trends/series returned: [{ label, value, target, volume, count }].
+ */
+const getDashboardSeries = async (req, res) => {
+  try {
+    const valid = ["month", "quarter", "year"];
+    const granularity = valid.includes(req.query.granularity)
+      ? req.query.granularity
+      : "month";
+    const year =
+      req.query.year && req.query.year !== "all"
+        ? Number(req.query.year)
+        : null;
+
+    const allRows = await getComputedTrendRows();
+    const filtered = filterComputedRows(allRows, {
+      year: year || undefined,
+      product: req.query.product,
+      salesperson: req.query.salesperson,
+      region: req.query.region,
+    });
+
+    const map = new Map();
+    const presentYears = new Set();
+    const keyFor = (y, seg) =>
+      granularity === "year"
+        ? String(y)
+        : `${y}-${granularity === "quarter" ? `Q${seg}` : seg}`;
+
+    filtered.forEach((r) => {
+      presentYears.add(r.year);
+      const seg =
+        granularity === "quarter"
+          ? Math.ceil(r.monthNumber / 3)
+          : r.monthNumber;
+      const key = keyFor(r.year, seg);
+      if (!map.has(key))
+        map.set(key, { value: 0, target: 0, volume: 0, count: 0 });
+      const b = map.get(key);
+      b.value += r.saleValueRs || 0;
+      b.target += r.targetValueRs || 0;
+      b.volume += r.saleVolumeKg || 0;
+      b.count += 1;
+    });
+
+    const makeBucket = (y, seg) => {
+      const hit = map.get(keyFor(y, seg));
+      const label =
+        granularity === "year"
+          ? String(y)
+          : granularity === "quarter"
+            ? year
+              ? `Q${seg}`
+              : `Q${seg} ${y}`
+            : `${MONTH_LABELS[seg - 1]} ${y}`;
+      return {
+        label,
+        value: hit ? hit.value : 0,
+        target: hit ? hit.target : 0,
+        volume: hit ? hit.volume : 0,
+        count: hit ? hit.count : 0,
+      };
+    };
+
+    const result = [];
+    const yearsToUse = year ? [year] : [...presentYears].sort((a, b) => a - b);
+    yearsToUse.forEach((y) => {
+      if (granularity === "month")
+        for (let m = 1; m <= 12; m += 1) result.push(makeBucket(y, m));
+      else if (granularity === "quarter")
+        for (let q = 1; q <= 4; q += 1) result.push(makeBucket(y, q));
+      else result.push(makeBucket(y, null));
+    });
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getDashboardSummary,
   getRegionSales,
   getTopProducts,
   getRegionProductComparison,
+  getDashboardFilters,
+  getDashboardSeries,
 };

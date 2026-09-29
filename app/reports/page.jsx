@@ -401,7 +401,7 @@ export default function ReportsPage() {
       setFetchError("");
 
       const results = await Promise.allSettled([
-        api.get("/trends", { params: { limit: 50000 } }),
+        api.get("/trends/live", { params: { limit: 50000 } }),
         api.get("/salesmen"),
         api.get("/recovery"),
         api.get("/sales"),
@@ -1817,11 +1817,11 @@ export default function ReportsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 text-xs hover:text-accent"
+                className="gap-1.5 text-xs bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-background dark:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground"
                 asChild
               >
                 <Link href="/reports/forecasting">
-                  <TrendingUp className="h-3.5 w-3.5 hover:text-accent" />
+                  <TrendingUp className="h-3.5 w-3.5 " />
                   Forecasting
                 </Link>
               </Button>
@@ -2075,7 +2075,7 @@ export default function ReportsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-8 gap-1.5 text-xs hover:text-accent"
+                          className="h-8 gap-1.5 text-xs bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-background dark:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground"
                           asChild
                         >
                           <Link

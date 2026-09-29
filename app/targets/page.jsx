@@ -44,6 +44,24 @@ const formatCompact = (value) => {
   return `${Math.round(n)}`;
 };
 
+// Format the target's selected month for display/export, e.g.
+// "2026-09-01" -> "Sep 2026".
+const formatTargetMonth = (periodStart) => {
+  if (!periodStart) return "-";
+
+  const value = String(periodStart).slice(0, 7); // YYYY-MM
+  const [year, month] = value.split("-");
+
+  if (!year || !month) return "-";
+
+  const date = new Date(Number(year), Number(month) - 1, 1);
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
+};
+
 function StatCard({ label, value, icon: Icon, colorClass }) {
   return (
     <Card className="border-border bg-card transition-all duration-300 hover:border-muted-foreground/30">
@@ -124,6 +142,7 @@ function Targets() {
       await api.put(`/targets/${target._id}`, {
         targetName: target.targetName,
         period: target.period,
+        periodStart: target.periodStart,
         assignedTo: target.assignedTo?._id || target.assignedTo,
         region: target.region || "",
         products: updatedProducts,
@@ -320,6 +339,10 @@ function Targets() {
   const targetColumns = [
     { label: "Salesman", value: (t) => t.assignedTo?.name || "Unassigned" },
     { label: "Target Name", key: "targetName" },
+    {
+      label: "Month",
+      value: (t) => formatTargetMonth(t.periodStart),
+    },
     { label: "Period", key: "period" },
     {
       label: "Region",
@@ -559,13 +582,14 @@ function Targets() {
                                   <span className="mr-2 text-accent">Rs.</span>
                                   {formatCompact(totalRevenue)}
                                 </p>
-                                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground hover:text-accent">
                                   <span className="flex items-center gap-1.5 truncate">
                                     <Building2 className="h-3.5 w-3.5 shrink-0" />
                                     {target.products?.length || 0} products
                                   </span>
-                                  <span className="flex items-center gap-1.5 truncate">
-                                    <CalendarDays className="h-3.5 w-3.5 shrink-0 ml-36" />
+                                  <span className="flex items-center gap-1.5 truncate hover:text-accent ml-13">
+                                    <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                                    {formatTargetMonth(target.periodStart)} ·{" "}
                                     {target.period}
                                   </span>
                                 </div>
@@ -631,12 +655,13 @@ function Targets() {
                                 selectedTarget.assignedTo?.name ||
                                 "Target details"}
                             </p>
-                            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                               <MapPin className="h-3.5 w-3.5" />
                               {selectedTarget.region ||
                                 selectedTarget.assignedTo?.area ||
                                 "Unassigned region"}{" "}
-                              · {selectedTarget.period} target
+                              · {formatTargetMonth(selectedTarget.periodStart)}·{" "}
+                              {selectedTarget.period} target
                             </p>
                           </div>
                           <button
@@ -736,7 +761,10 @@ function Targets() {
                               </div>
                               <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
                                 <span>Region: {regionLabel}</span>
-                                <span>{target.period}</span>
+                                <span>
+                                  {formatTargetMonth(target.periodStart)} ·{" "}
+                                  {target.period}
+                                </span>
                                 <span>{target.products.length} Products</span>
                                 <span className="font-semibold text-blue-600">
                                   Rs.{" "}

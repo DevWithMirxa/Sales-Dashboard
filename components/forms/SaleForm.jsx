@@ -25,7 +25,7 @@ import {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-const UNITS = ["bags", "Kg", "tons", "units"];
+const UNITS = ["bags", "kg", "tons", "units"];
 
 const emptyForm = () => ({
   salesman: "",

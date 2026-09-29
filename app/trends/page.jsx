@@ -40,11 +40,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Upload,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  X,
   FileDown,
+  Loader2,
 } from "lucide-react";
 
 import {
@@ -136,11 +133,6 @@ function TrendsContent() {
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [sorting, setSorting] = useState([{ id: "saleValueRs", desc: true }]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
-  const [uploading, setUploading] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState(null); // { type: 'success' | 'error', text }
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
-  const fileInputRef = useRef(null);
 
   const entityKey = view === "product" ? "product" : "salesperson";
 
@@ -168,89 +160,74 @@ function TrendsContent() {
 
   useEffect(fetchFilters, []);
 
-  useEffect(() => {
-    setSelectedEntity(null);
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    fetchTableData();
-  }, [view, year]);
+  // ---- Excel upload / template download (Trend collection) ----
+  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null); // { ok, message, details }
 
-  // "Browse Excel File" opens the dialog instead of the file picker directly,
-  // so the user sees the Download Format File option first.
-  const handleBrowseClick = () => setShowUploadDialog(true);
-
-  // "Upload Excel File" inside the dialog closes it, then opens the actual
-  // OS file picker. The hidden <input type="file"> below stays mounted
-  // outside the dialog, so this still works after the dialog unmounts.
-  const handleChooseUpload = () => {
-    setShowUploadDialog(false);
-    fileInputRef.current?.click();
-  };
-
-  const handleDownloadTemplate = async () => {
-    setDownloadingTemplate(true);
-    try {
-      const res = await api.get("/trends/upload-template", {
-        responseType: "blob",
-      });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "trends-upload-template.xlsx");
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Error downloading template:", err);
-      alert("Failed to download the template file.");
-    } finally {
-      setDownloadingTemplate(false);
-    }
-  };
-
-  const handleFileSelected = async (e) => {
+  const handleUploadFile = async (e) => {
     const file = e.target.files?.[0];
-    e.target.value = ""; // reset so selecting the same file again still fires onChange
+    e.target.value = ""; // allow re-selecting the same file later
     if (!file) return;
 
-    setShowUploadDialog(false);
-    setUploading(true);
-    setUploadMessage(null);
-
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", file); // backend expects the field name "file"
 
+    setUploading(true);
+    setUploadResult(null);
     try {
       const res = await api.post("/trends/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      const {
-        inserted = 0,
-        updated = 0,
-        skipped = 0,
-        totalRows = 0,
-      } = res.data || {};
-      setUploadMessage({
-        type: "success",
-        text: `Imported ${inserted + updated} of ${totalRows} rows (${inserted} new, ${updated} updated${
-          skipped ? `, ${skipped} skipped` : ""
-        }).`,
+      const d = res.data || {};
+      setUploadResult({
+        ok: true,
+        message: `Upload complete: ${d.inserted ?? 0} added, ${d.updated ?? 0} updated, ${d.skipped ?? 0} skipped (of ${d.totalRows ?? 0} rows).`,
+        details: d.errors || [],
       });
-      // New year/period may have just been added - refresh the dropdown and
-      // whatever view/year the user currently has selected.
       fetchFilters();
       fetchTableData();
     } catch (err) {
-      setUploadMessage({
-        type: "error",
-        text:
-          err.response?.data?.message ||
-          "Upload failed. Please check the file format and try again.",
+      setUploadResult({
+        ok: false,
+        message:
+          err?.response?.data?.message ||
+          "Upload failed. Please check the file and try again.",
+        details: err?.response?.data?.errors || [],
       });
     } finally {
       setUploading(false);
     }
   };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await api.get("/trends/upload-template", {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "trends-upload-template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error downloading trends template:", err);
+      setUploadResult({
+        ok: false,
+        message: "Could not download the template.",
+        details: [],
+      });
+    }
+  };
+
+  useEffect(() => {
+    setSelectedEntity(null);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    fetchTableData();
+  }, [view, year]);
 
   const columns = useMemo(
     () => [
@@ -486,31 +463,42 @@ function TrendsContent() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <DownloadButton
-            onExcel={handleExportExcel}
-            onPdf={handleExportPDF}
-            disabled={!rows.length}
-          />
           <input
             ref={fileInputRef}
             type="file"
             accept=".xlsx,.xls"
             className="hidden"
-            onChange={handleFileSelected}
+            onChange={handleUploadFile}
           />
           <Button
+            type="button"
             variant="outline"
-            onClick={handleBrowseClick}
+            size="sm"
+            className="h-8 gap-1.5 text-xs bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-background dark:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground"
+            onClick={handleDownloadTemplate}
+          >
+            <FileDown className="h-4 w-4" />
+            Download Format
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 gap-1.5 text-xs bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-background dark:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground"
             disabled={uploading}
-            className="hover:text-accent"
+            onClick={() => fileInputRef.current?.click()}
           >
             {uploading ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Upload className="w-4 h-4 mr-2" />
+              <Upload className="h-4 w-4" />
             )}
-            {uploading ? "Uploading..." : "Browse Excel File"}
+            {uploading ? "Uploading..." : "Upload Excel"}
           </Button>
+          <DownloadButton
+            onExcel={handleExportExcel}
+            onPdf={handleExportPDF}
+            disabled={!rows.length}
+          />
           <Tabs value={view} onValueChange={setView}>
             <TabsList>
               <TabsTrigger value="product">By Product</TabsTrigger>
@@ -545,30 +533,31 @@ function TrendsContent() {
         </div>
       </div>
 
-      {uploadMessage && (
+      {uploadResult && (
         <div
-          className={cn(
-            "flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm",
-            uploadMessage.type === "success"
-              ? "border-green-500/30 bg-green-500/10 text-green-300"
-              : "border-red-500/30 bg-red-500/10 text-red-300",
-          )}
+          className={`rounded-lg border p-4 text-sm ${
+            uploadResult.ok
+              ? "border-success/30 bg-success/10 text-success"
+              : "border-destructive/30 bg-destructive/10 text-destructive"
+          }`}
         >
-          <div className="flex items-start gap-2">
-            {uploadMessage.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-            )}
-            <span>{uploadMessage.text}</span>
+          <div className="flex items-start justify-between gap-3">
+            <span>{uploadResult.message}</span>
+            <button
+              type="button"
+              className="text-xs underline shrink-0"
+              onClick={() => setUploadResult(null)}
+            >
+              Dismiss
+            </button>
           </div>
-          <button
-            onClick={() => setUploadMessage(null)}
-            className="shrink-0 opacity-70 hover:opacity-100"
-            aria-label="Dismiss"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {uploadResult.details?.length > 0 && (
+            <ul className="mt-2 list-disc pl-5 text-xs space-y-0.5">
+              {uploadResult.details.slice(0, 5).map((d, i) => (
+                <li key={i}>{typeof d === "string" ? d : JSON.stringify(d)}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -954,52 +943,6 @@ function TrendsContent() {
           </div>
         </CardFooter>
       </Card>
-
-      {/* Browse Excel dialog - download a correctly-formatted template, or
-          go straight to picking a file to upload */}
-      {showUploadDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-xl">
-            <div className="flex items-center justify-between border-b border-border p-6">
-              <h3 className="text-base font-semibold text-foreground">
-                Import Trends
-              </h3>
-              <button
-                onClick={() => setShowUploadDialog(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Not sure about the column headers? Download the format file
-                first — it has the exact headers we expect, plus one example
-                row.
-              </p>
-              <Button
-                variant="outline"
-                onClick={handleDownloadTemplate}
-                disabled={downloadingTemplate}
-                className="w-full"
-              >
-                {downloadingTemplate ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <FileDown className="w-4 h-4 mr-2" />
-                )}
-                {downloadingTemplate
-                  ? "Downloading..."
-                  : "Download Format File"}
-              </Button>
-              <Button onClick={handleChooseUpload} className="w-full">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Excel File
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

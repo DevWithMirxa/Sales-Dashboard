@@ -205,7 +205,7 @@ function Dashboard() {
     }
     setSeriesLoading(true);
     api
-      .get("/trends/series", { params: breakdown })
+      .get("/dashboard/series", { params: breakdown })
       .then((res) => {
         if (active) setTrendSeries(res.data || []);
       })
@@ -714,7 +714,7 @@ function Dashboard() {
                 )}
               </ChartCard>
 
-              {/* Top 5 Products / Volume & Revenue Share (v0-reference style) */}
+              {/* Top 5 Products / Volume & Revenue Share */}
               <ChartCard
                 title={`Top 5 Products / ${periodUnit}`}
                 subtitle="Revenue share & volume distribution"
@@ -728,38 +728,15 @@ function Dashboard() {
                     "bg-[oklch(0.7_0.15_300)]", // Purple
                   ];
 
-                  const defaultProducts = [
-                    {
-                      name: "Anavite Vitamin Premix",
-                      sales: 2000000,
-                      volume: 1.37,
-                    },
-                    { name: "Betaine HCL", sales: 2000000, volume: 4.33 },
-                    { name: "Zagribind", sales: 1000000, volume: 3.97 },
-                    {
-                      name: "Toxin Binder Feed Grade",
-                      sales: 850000,
-                      volume: 2.15,
-                    },
-                    {
-                      name: "Acidifier Premix Ultra",
-                      sales: 620000,
-                      volume: 1.8,
-                    },
-                  ];
+                  const sourceProducts = topProducts.slice(0, 5);
 
-                  const sourceProducts =
-                    topProducts.length >= 5
-                      ? topProducts.slice(0, 5)
-                      : topProducts.length > 0
-                        ? [
-                            ...topProducts,
-                            ...defaultProducts.filter(
-                              (dp) =>
-                                !topProducts.some((tp) => tp.name === dp.name),
-                            ),
-                          ].slice(0, 5)
-                        : defaultProducts;
+                  if (sourceProducts.length === 0) {
+                    return (
+                      <div className="flex items-center justify-center h-77.5 text-muted-foreground text-xs">
+                        No product data available for selected filters.
+                      </div>
+                    );
+                  }
 
                   const totalSales = sourceProducts.reduce(
                     (s, p) => s + Number(p.sales || 0),
@@ -878,7 +855,7 @@ function Dashboard() {
                 )}
               </ChartCard>
 
-              {/* Top Performers (v0-reference style) alongside Product Composition */}
+              {/* Top Performers */}
               <ChartCard
                 title="Top Performers"
                 subtitle="This month's leaders"
@@ -889,66 +866,15 @@ function Dashboard() {
                 }
               >
                 {(() => {
-                  // Real salesmen from the database (ranked by actual sales performance)
-                  const defaultSalesmen = [
-                    {
-                      name: "Dr. M. Imran Aslam",
-                      sales: 10077499,
-                      mt: 13.18,
-                      region: "All Pakistan",
-                      designation: "MM",
-                      change: "+18%",
-                    },
-                    {
-                      name: "Mr. Basit Aziz",
-                      sales: 9026248,
-                      mt: 7.4,
-                      region: "Kamalia/Samundari",
-                      designation: "ASM",
-                      change: "+14%",
-                    },
-                    {
-                      name: "Mr. Ameen Matee",
-                      sales: 6116999,
-                      mt: 12.1,
-                      region: "Karachi",
-                      designation: "RSM",
-                      change: "+9%",
-                    },
-                    {
-                      name: "Mr. Junaid",
-                      sales: 3617494,
-                      mt: 3.23,
-                      region: "Multan",
-                      designation: "ASM",
-                      change: "+6%",
-                    },
-                    {
-                      name: "Muzamil Ur Rehman",
-                      sales: 3054999,
-                      mt: 2.48,
-                      region: "Karachi",
-                      designation: "Distributor",
-                      change: "+11%",
-                    },
-                  ];
+                  const performers = summary.topSalesmen.slice(0, 5);
 
-                  const rawList =
-                    summary.topSalesmen.length > 0
-                      ? summary.topSalesmen
-                      : defaultSalesmen;
-
-                  const performers =
-                    rawList.length >= 5
-                      ? rawList.slice(0, 5)
-                      : [
-                          ...rawList,
-                          ...defaultSalesmen.filter(
-                            (ds) => !rawList.some((rs) => rs.name === ds.name),
-                          ),
-                        ].slice(0, 5);
-
-                  const changes = ["+15%", "+12%", "+8%", "+5%", "+9%"];
+                  if (performers.length === 0) {
+                    return (
+                      <div className="flex items-center justify-center h-77.5 text-muted-foreground text-xs">
+                        No salesperson data available for selected filters.
+                      </div>
+                    );
+                  }
 
                   return (
                     <div className="space-y-2 py-1">
@@ -1002,11 +928,12 @@ function Dashboard() {
                               <p className="text-xs font-bold font-mono text-foreground">
                                 {formattedSales}
                               </p>
-                              <div className="flex items-center justify-end gap-1 text-[11px] text-success font-medium">
-                                <TrendingUp className="w-3 h-3 text-success" />
-                                {person.change ||
-                                  changes[index % changes.length]}
-                              </div>
+                              {person.change && (
+                                <div className="flex items-center justify-end gap-1 text-[11px] text-success font-medium">
+                                  <TrendingUp className="w-3 h-3 text-success" />
+                                  {person.change}
+                                </div>
+                              )}
                             </div>
                           </div>
                         );

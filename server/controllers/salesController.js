@@ -43,18 +43,25 @@ const computeTotal = (body) => {
 // Feeds the "Add Sales" dialog: salesmen (Salesman page only - the legacy
 // Business Directory Sales Team is intentionally no longer merged so the
 // dropdown can't show stale/duplicate names), products (Product page +
-// products referenced in Targets), customers (Business Directory Feed Mills),
-// and regions (Region page).
+// products referenced in Targets - both filtered to active only, since
+// "Delete" on the Products page is a soft delete (status -> "inactive")
+// rather than removing the document - matching the same activeStatus
+// filter already applied to regions below), customers (Business Directory
+// Feed Mills), and regions (Region page).
 const getSaleFormOptions = async (req, res) => {
   try {
-    const [salesmen, products, targets, feedMills, regions] =
-      await Promise.all([
+    const [salesmen, products, targets, feedMills, regions] = await Promise.all(
+      [
         Salesman.find().select("name designation area"),
-        Product.find().select("name pricePerKg packingKg"),
-        Target.find().populate("products.product", "name pricePerKg packingKg"),
+        Product.find({ status: "active" }).select("name pricePerKg packingKg"),
+        Target.find().populate(
+          "products.product",
+          "name pricePerKg packingKg status",
+        ),
         FeedMill.find().select("feedMillName districtRegion"),
         Region.find({ activeStatus: true }).select("region"),
-      ]);
+      ],
+    );
 
     // --- Salesmen: take from the Salesman page only ---
     const salesmenCombined = dedupeByName(
@@ -69,11 +76,14 @@ const getSaleFormOptions = async (req, res) => {
     // --- Products: merge Product master + products referenced in Targets ---
     // (Target.products.product is already a ref to Product, so this mostly
     // guards against a target pointing at a product that's since been
-    // renamed/removed from the Product list.)
+    // renamed/removed from the Product list.) Both sides are filtered to
+    // status === "active" - populate() still successfully resolves an
+    // inactive (soft-deleted) product since the document still exists, so
+    // this side needs its own explicit check too, not just the query above.
     const targetProducts = targets.flatMap((t) =>
       (t.products || [])
         .map((p) => p.product)
-        .filter(Boolean)
+        .filter((p) => p && p.status === "active")
         .map((p) => ({
           name: p.name,
           pricePerKg: p.pricePerKg,

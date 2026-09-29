@@ -426,7 +426,7 @@ function BusinessDirectoryContent() {
             variant="outline"
             onClick={handleBrowseClick}
             disabled={uploading}
-            className="hover:text-accent"
+            className="bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-background dark:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground"
           >
             {uploading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

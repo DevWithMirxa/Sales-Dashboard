@@ -161,7 +161,7 @@ function PerformanceFlow() {
     try {
       setLoading(true);
       setFetchError("");
-      const res = await api.get("/trends", { params: { limit: 50000 } });
+      const res = await api.get("/trends/live", { params: { limit: 50000 } });
       setTrendRows(res.data.rows || []);
     } catch (error) {
       console.error("Error loading trend data:", error);

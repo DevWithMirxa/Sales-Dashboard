@@ -289,7 +289,7 @@ function Forecasting() {
       setFetchError("");
 
       const results = await Promise.allSettled([
-        api.get("/trends", { params: { limit: 50000 } }),
+        api.get("/trends/live", { params: { limit: 50000 } }),
         api.get("/salesmen"),
       ]);
 
